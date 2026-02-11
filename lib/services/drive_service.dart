@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
 import '../models/app_data.dart';
+import 'google_client_ids.dart';
 
 const _fileName = 'todo_app_data.json';
 
@@ -28,8 +29,10 @@ class DriveService {
   bool get isSignedIn => _account != null;
   String? get userEmail => _account?.email;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
+  late final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: [drive.DriveApi.driveAppdataScope],
+    clientId: GoogleClientIds.current,
+    serverClientId: GoogleClientIds.serverClientId,
   );
 
   /// Try silent sign-in on launch.
