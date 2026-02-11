@@ -7,13 +7,13 @@ import '../models/folder.dart';
 import '../models/tag.dart';
 import '../models/smart_list.dart';
 import '../services/storage_service.dart';
-import '../services/drive_service.dart';
+import '../services/dropbox_service.dart';
 
 const _uuid = Uuid();
 
 class AppState extends ChangeNotifier {
   final StorageService _storage = StorageService();
-  final DriveService driveService = DriveService();
+  final DropboxService dropboxService = DropboxService();
 
   AppData _data = AppData();
   bool _loading = true;
@@ -21,8 +21,7 @@ class AppState extends ChangeNotifier {
 
   bool get loading => _loading;
   bool get syncing => _syncing;
-  bool get isSignedIn => driveService.isSignedIn;
-  String? get userEmail => driveService.userEmail;
+  bool get isSignedIn => dropboxService.isSignedIn;
 
   List<Task> get tasks => _data.tasks;
   List<TaskList> get lists => _data.lists;
@@ -37,8 +36,9 @@ class AppState extends ChangeNotifier {
     _ensureDefaults();
     _loading = false;
     notifyListeners();
-    // try silent sign-in
-    await driveService.trySilentSignIn();
+
+    // Initialise Dropbox (loads saved tokens and handles web OAuth redirect).
+    await dropboxService.init();
     notifyListeners();
   }
 
@@ -237,24 +237,22 @@ class AppState extends ChangeNotifier {
 
   // ───── Sync ─────
 
-  Future<bool> signIn() async {
-    final ok = await driveService.signIn();
-    notifyListeners();
-    return ok;
+  Future<void> signIn() async {
+    await dropboxService.signIn();
   }
 
   Future<void> signOut() async {
-    await driveService.signOut();
+    await dropboxService.signOut();
     notifyListeners();
   }
 
-  Future<void> syncWithDrive() async {
-    if (!driveService.isSignedIn) return;
+  Future<void> sync() async {
+    if (!dropboxService.isSignedIn) return;
     _syncing = true;
     notifyListeners();
 
     try {
-      final remote = await driveService.download();
+      final remote = await dropboxService.download();
       if (remote != null && remote.lastModified.isAfter(_data.lastModified)) {
         // Remote is newer – use it.
         _data = remote;
@@ -262,7 +260,7 @@ class AppState extends ChangeNotifier {
         await _storage.save(_data);
       } else {
         // Local is newer (or no remote) – upload.
-        await driveService.upload(_data);
+        await dropboxService.upload(_data);
       }
     } catch (e) {
       debugPrint('Sync error: $e');
@@ -273,11 +271,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> forceUpload() async {
-    if (!driveService.isSignedIn) return;
+    if (!dropboxService.isSignedIn) return;
     _syncing = true;
     notifyListeners();
     try {
-      await driveService.upload(_data);
+      await dropboxService.upload(_data);
     } catch (e) {
       debugPrint('Upload error: $e');
     }
@@ -286,11 +284,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> forceDownload() async {
-    if (!driveService.isSignedIn) return;
+    if (!dropboxService.isSignedIn) return;
     _syncing = true;
     notifyListeners();
     try {
-      final remote = await driveService.download();
+      final remote = await dropboxService.download();
       if (remote != null) {
         _data = remote;
         _ensureDefaults();

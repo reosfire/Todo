@@ -14,6 +14,7 @@ class SyncSettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ── Connection status card ──
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -29,19 +30,11 @@ class SyncSettingsPage extends StatelessWidget {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              state.isSignedIn
-                                  ? 'Connected to Google Drive'
-                                  : 'Not connected',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            if (state.isSignedIn && state.userEmail != null)
-                              Text(state.userEmail!,
-                                  style: Theme.of(context).textTheme.bodySmall),
-                          ],
+                        child: Text(
+                          state.isSignedIn
+                              ? 'Connected to Dropbox'
+                              : 'Not connected',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ),
                     ],
@@ -51,18 +44,20 @@ class SyncSettingsPage extends StatelessWidget {
                     FilledButton.icon(
                       onPressed: () => state.signIn(),
                       icon: const Icon(Icons.login),
-                      label: const Text('Sign in with Google'),
+                      label: const Text('Connect to Dropbox'),
                     )
                   else
                     OutlinedButton.icon(
                       onPressed: () => state.signOut(),
                       icon: const Icon(Icons.logout),
-                      label: const Text('Sign out'),
+                      label: const Text('Disconnect'),
                     ),
                 ],
               ),
             ),
           ),
+
+          // ── Sync actions ──
           if (state.isSignedIn) ...[
             const SizedBox(height: 16),
             Card(
@@ -73,21 +68,24 @@ class SyncSettingsPage extends StatelessWidget {
                     title: const Text('Sync now'),
                     subtitle: const Text(
                         'Downloads if remote is newer, uploads otherwise'),
-                    onTap: state.syncing ? null : () => state.syncWithDrive(),
+                    onTap: state.syncing ? null : () => state.sync(),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.cloud_upload),
                     title: const Text('Force upload'),
-                    subtitle: const Text('Overwrite remote with local data'),
+                    subtitle:
+                        const Text('Overwrite remote with local data'),
                     onTap: state.syncing ? null : () => state.forceUpload(),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.cloud_download),
                     title: const Text('Force download'),
-                    subtitle: const Text('Overwrite local with remote data'),
-                    onTap: state.syncing ? null : () => state.forceDownload(),
+                    subtitle:
+                        const Text('Overwrite local with remote data'),
+                    onTap:
+                        state.syncing ? null : () => state.forceDownload(),
                   ),
                 ],
               ),
@@ -98,6 +96,8 @@ class SyncSettingsPage extends StatelessWidget {
                 child: Center(child: CircularProgressIndicator()),
               ),
           ],
+
+          // ── Info card ──
           const SizedBox(height: 24),
           Card(
             child: Padding(
@@ -109,8 +109,8 @@ class SyncSettingsPage extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 8),
                   const Text(
-                    'Your data is stored in Google Drive\'s app-specific '
-                    'folder which is only accessible by this app. '
+                    'Your data is stored in Dropbox\'s app folder which is '
+                    'only accessible by this app. '
                     'Sync compares timestamps and keeps the most recent version. '
                     'Use force upload/download to manually resolve conflicts.',
                   ),

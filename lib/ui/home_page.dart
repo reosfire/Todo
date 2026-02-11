@@ -116,7 +116,7 @@ class _HomePageState extends State<HomePage> {
         else if (state.isSignedIn)
           IconButton(
             icon: const Icon(Icons.sync),
-            onPressed: () => state.syncWithDrive(),
+            onPressed: () => state.sync(),
             tooltip: 'Sync',
           ),
       ],
@@ -147,7 +147,7 @@ class _HomePageState extends State<HomePage> {
           else if (state.isSignedIn)
             IconButton(
               icon: const Icon(Icons.sync),
-              onPressed: () => state.syncWithDrive(),
+              onPressed: () => state.sync(),
               tooltip: 'Sync',
             ),
         ],
@@ -174,7 +174,7 @@ class _HomePageState extends State<HomePage> {
                               .onPrimaryContainer,
                         )),
                 if (state.isSignedIn)
-                  Text(state.userEmail ?? '',
+                  Text('Syncing with Dropbox',
                       style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
