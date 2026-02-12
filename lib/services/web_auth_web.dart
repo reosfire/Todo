@@ -21,7 +21,26 @@ void clearUrlAuthCode() {
   web.window.history.replaceState(''.toJSBox, '', cleanUrl);
 }
 
-/// Returns the origin of the current page (e.g. http://localhost:8080).
+/// Returns the base URL of the app (origin + base path).
+/// For example: https://reosfire.github.io/Todo/ or http://localhost:8080/
 String getAppRedirectUri() {
+  // Get the base element's href which includes the base path
+  final baseElement = web.document.querySelector('base');
+  if (baseElement != null) {
+    final baseHref = baseElement.getAttribute('href');
+    if (baseHref != null && baseHref.isNotEmpty && baseHref != r'$FLUTTER_BASE_HREF') {
+      // base href is absolute or relative - combine with origin
+      final uri = Uri.parse(web.window.location.href);
+      final base = Uri.parse(baseHref);
+      if (base.hasScheme) {
+        // Absolute base href
+        return base.toString();
+      } else {
+        // Relative base href - combine with origin
+        return '${uri.origin}$baseHref';
+      }
+    }
+  }
+  // Fallback to origin if no base href found
   return web.window.location.origin;
 }
