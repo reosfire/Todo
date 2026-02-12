@@ -319,6 +319,8 @@ class _HomePageState extends State<HomePage> {
           leading: const Icon(Icons.folder_outlined, size: 20),
           title: Text(folder.name),
           dense: true,
+          shape: const Border(),
+          collapsedShape: const Border(),
           trailing: SizedBox(
             width: 32,
             child: isHovered
