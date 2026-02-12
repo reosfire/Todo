@@ -169,6 +169,77 @@ class DropboxService {
     }
   }
 
+  // ───── Folder cursor & longpoll ─────
+
+  /// Get a cursor for the app folder's current state using
+  /// `list_folder/get_latest_cursor`.  The cursor can later be passed to
+  /// [longpollForChanges] or [listFolderContinue].
+  Future<String?> getLatestCursor() async {
+    await _ensureValidToken();
+
+    final response = await http.post(
+      Uri.parse(
+        'https://api.dropboxapi.com/2/files/list_folder/get_latest_cursor',
+      ),
+      headers: {
+        'Authorization': 'Bearer $_accessToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'path': '',
+        'recursive': true,
+        'include_deleted': false,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      debugPrint(
+        'get_latest_cursor failed (${response.statusCode}): '
+        '${response.body}',
+      );
+      return null;
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data['cursor'] as String?;
+  }
+
+  /// Long-poll Dropbox for changes.  Blocks for up to [timeout] seconds
+  /// (30-480, default 120).  Returns `true` when remote files have changed,
+  /// `false` on timeout, and `null` on error (e.g. cursor reset).
+  ///
+  /// **Important:** This endpoint uses `notify.dropboxapi.com` and does NOT
+  /// require an Authorization header.
+  Future<bool?> longpollForChanges(String cursor, {int timeout = 120}) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse(
+              'https://notify.dropboxapi.com/2/files/list_folder/longpoll',
+            ),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'cursor': cursor, 'timeout': timeout}),
+          )
+          .timeout(
+            Duration(seconds: timeout + 120), // generous HTTP timeout
+          );
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          'longpoll failed (${response.statusCode}): '
+          '${response.body}',
+        );
+        return null;
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['changes'] as bool? ?? false;
+    } catch (e) {
+      debugPrint('longpoll error: $e');
+      return null;
+    }
+  }
+
   // ───── PKCE helpers ─────
 
   String _generateCodeVerifier() {

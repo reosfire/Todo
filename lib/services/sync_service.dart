@@ -43,6 +43,16 @@ class SyncService {
   /// Sequential operation chain so pushes never overlap.
   Future<void>? _pendingOp;
 
+  /// Callback invoked when remote changes have been pulled into [AppData].
+  /// The caller (AppState) sets this so it can call notifyListeners / save.
+  void Function(AppData)? onRemoteDataChanged;
+
+  /// Current longpoll cursor (Dropbox list_folder cursor).
+  String? _longpollCursor;
+
+  /// Whether the remote-polling loop is active.
+  bool _polling = false;
+
   SyncService(this._dropbox, this._storage);
 
   bool get isSignedIn => _dropbox.isSignedIn;
@@ -106,10 +116,7 @@ class SyncService {
 
   void _schedulePush() {
     _pushTimer?.cancel();
-    _pushTimer = Timer(
-      const Duration(milliseconds: 500),
-      _flushPendingChanges,
-    );
+    _pushTimer = Timer(const Duration(milliseconds: 500), _flushPendingChanges);
   }
 
   void _flushPendingChanges() {
@@ -138,8 +145,7 @@ class SyncService {
         final remoteIndex = await _downloadRemoteIndex();
         for (final entry in batch.entries) {
           if (entry.value != null) {
-            remoteIndex.entities[entry.key] =
-                _localIndex.entities[entry.key]!;
+            remoteIndex.entities[entry.key] = _localIndex.entities[entry.key]!;
             remoteIndex.deletions.remove(entry.key);
           } else {
             remoteIndex.entities.remove(entry.key);
@@ -157,9 +163,11 @@ class SyncService {
   // ───── Queue helpers ─────
 
   void _enqueue(Future<void> Function() op) {
-    _pendingOp = (_pendingOp ?? Future.value()).then((_) => op().catchError(
-          (Object e) => debugPrint('Enqueued sync op error: $e'),
-        ));
+    _pendingOp = (_pendingOp ?? Future.value()).then(
+      (_) => op().catchError(
+        (Object e) => debugPrint('Enqueued sync op error: $e'),
+      ),
+    );
   }
 
   Future<void> _waitForPendingOps() async {
@@ -224,8 +232,7 @@ class SyncService {
       final localTime = _localIndex.entities[entry.key];
       if (localTime == null || entry.value.isAfter(localTime)) {
         try {
-          final content =
-              await _dropbox.downloadFile('/${entry.key}.json');
+          final content = await _dropbox.downloadFile('/${entry.key}.json');
           if (content != null) {
             final json = jsonDecode(content) as Map<String, dynamic>;
             _applyEntityToData(localData, entry.key, json);
@@ -251,10 +258,7 @@ class SyncService {
         try {
           final json = _extractEntityFromData(localData, entry.key);
           if (json != null) {
-            await _dropbox.uploadFile(
-              '/${entry.key}.json',
-              jsonEncode(json),
-            );
+            await _dropbox.uploadFile('/${entry.key}.json', jsonEncode(json));
             remoteIndex.entities[entry.key] = entry.value;
             remoteIndex.deletions.remove(entry.key);
           }
@@ -410,9 +414,7 @@ class SyncService {
   Future<SyncIndex> _downloadRemoteIndex() async {
     final content = await _dropbox.downloadFile('/index.json');
     if (content != null) {
-      return SyncIndex.fromJson(
-        jsonDecode(content) as Map<String, dynamic>,
-      );
+      return SyncIndex.fromJson(jsonDecode(content) as Map<String, dynamic>);
     }
     return SyncIndex();
   }
@@ -423,11 +425,7 @@ class SyncService {
 
   // ───── Data manipulation helpers ─────
 
-  void _applyEntityToData(
-    AppData data,
-    String key,
-    Map<String, dynamic> json,
-  ) {
+  void _applyEntityToData(AppData data, String key, Map<String, dynamic> json) {
     final slash = key.indexOf('/');
     final type = key.substring(0, slash);
     switch (type) {
@@ -513,6 +511,130 @@ class SyncService {
       }
     } catch (_) {
       return null;
+    }
+  }
+
+  // ───── Pull remote changes (index-based) ─────
+
+  /// Downloads only the entities that are newer on the server than locally.
+  /// Returns `true` if any local data was changed.
+  Future<bool> pullRemoteChanges(AppData localData) async {
+    if (!_dropbox.isSignedIn) return false;
+
+    try {
+      final indexContent = await _dropbox.downloadFile('/index.json');
+      if (indexContent == null) return false;
+
+      final remoteIndex = SyncIndex.fromJson(
+        jsonDecode(indexContent) as Map<String, dynamic>,
+      );
+
+      bool changed = false;
+
+      // Process remote deletions.
+      for (final entry in remoteIndex.deletions.entries) {
+        final localTime = _localIndex.entities[entry.key];
+        if (localTime != null && entry.value.isAfter(localTime)) {
+          _removeEntityFromData(localData, entry.key);
+          _localIndex.entities.remove(entry.key);
+          _localIndex.deletions[entry.key] = entry.value;
+          changed = true;
+        }
+      }
+
+      // Download entities that are newer remotely.
+      for (final entry in remoteIndex.entities.entries) {
+        if (remoteIndex.deletions.containsKey(entry.key)) continue;
+        final localTime = _localIndex.entities[entry.key];
+        if (localTime == null || entry.value.isAfter(localTime)) {
+          try {
+            final content = await _dropbox.downloadFile('/${entry.key}.json');
+            if (content != null) {
+              final json = jsonDecode(content) as Map<String, dynamic>;
+              _applyEntityToData(localData, entry.key, json);
+              _localIndex.entities[entry.key] = entry.value;
+              changed = true;
+            }
+          } catch (e) {
+            debugPrint('Pull error for ${entry.key}: $e');
+          }
+        }
+      }
+
+      if (changed) {
+        localData.lastModified = DateTime.now();
+        await _storage.saveSyncIndex(_localIndex);
+      }
+
+      return changed;
+    } catch (e) {
+      debugPrint('pullRemoteChanges error: $e');
+      return false;
+    }
+  }
+
+  // ───── Dropbox longpoll-based remote polling ─────
+
+  /// Start continuously polling Dropbox for remote changes.
+  /// When changes are detected the remote index is checked and new entities
+  /// are pulled.  This runs an infinite loop until [stopRemotePolling] is
+  /// called.
+  void startRemotePolling(AppData Function() currentData) {
+    if (_polling) return;
+    _polling = true;
+    _pollLoop(currentData);
+  }
+
+  void stopRemotePolling() {
+    _polling = false;
+  }
+
+  Future<void> _pollLoop(AppData Function() currentData) async {
+    while (_polling && _dropbox.isSignedIn) {
+      try {
+        // Obtain a cursor if we don't have one yet.
+        _longpollCursor ??= await _dropbox.getLatestCursor();
+        if (_longpollCursor == null) {
+          // Could not get cursor – wait and retry.
+          await Future.delayed(const Duration(seconds: 30));
+          continue;
+        }
+
+        // Block until Dropbox signals a change (or timeout).
+        final hasChanges = await _dropbox.longpollForChanges(
+          _longpollCursor!,
+          timeout: 120,
+        );
+
+        if (!_polling) break;
+
+        if (hasChanges == null) {
+          // Error or cursor reset – get a fresh cursor.
+          _longpollCursor = null;
+          await Future.delayed(const Duration(seconds: 5));
+          continue;
+        }
+
+        if (hasChanges) {
+          // Something changed – refresh the cursor and pull updates.
+          _longpollCursor = await _dropbox.getLatestCursor();
+
+          final data = currentData();
+          final changed = await pullRemoteChanges(data);
+          if (changed && onRemoteDataChanged != null) {
+            onRemoteDataChanged!(data);
+          }
+        } else {
+          // Timeout with no changes – refresh cursor and loop.
+          _longpollCursor = await _dropbox.getLatestCursor();
+        }
+      } catch (e) {
+        debugPrint('Poll loop error: $e');
+        _longpollCursor = null;
+        if (_polling) {
+          await Future.delayed(const Duration(seconds: 10));
+        }
+      }
     }
   }
 }

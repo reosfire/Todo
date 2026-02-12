@@ -13,7 +13,7 @@ import '../services/sync_service.dart';
 
 const _uuid = Uuid();
 
-class AppState extends ChangeNotifier {
+class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final StorageService _storage = StorageService();
   final DropboxService dropboxService = DropboxService();
   late final SyncService _syncService = SyncService(dropboxService, _storage);
@@ -48,6 +48,57 @@ class AppState extends ChangeNotifier {
     // Initialize deep link handling for Android/iOS OAuth redirect
     _initDeepLinks();
 
+    // Set up callback for when remote changes arrive via longpoll.
+    _syncService.onRemoteDataChanged = _onRemoteDataPulled;
+
+    // Register lifecycle observer so we pause/resume polling.
+    WidgetsBinding.instance.addObserver(this);
+
+    // Pull latest changes from server on startup and start polling.
+    if (dropboxService.isSignedIn) {
+      _pullAndStartPolling();
+    }
+
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _syncService.stopRemotePolling();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // App came back to foreground – pull changes and restart polling.
+      if (dropboxService.isSignedIn) {
+        _pullAndStartPolling();
+      }
+    } else if (state == AppLifecycleState.paused) {
+      // App went to background – stop the longpoll loop.
+      _syncService.stopRemotePolling();
+    }
+  }
+
+  /// Pull remote changes and (re)start the longpoll loop.
+  Future<void> _pullAndStartPolling() async {
+    // Quick pull on open.
+    final changed = await _syncService.pullRemoteChanges(_data);
+    if (changed) {
+      _ensureDefaults();
+      await _storage.save(_data);
+      notifyListeners();
+    }
+    // Start continuous polling.
+    _syncService.startRemotePolling(() => _data);
+  }
+
+  /// Called by SyncService when the longpoll loop detected and pulled changes.
+  void _onRemoteDataPulled(AppData data) async {
+    _ensureDefaults();
+    await _storage.save(_data);
     notifyListeners();
   }
 
@@ -77,6 +128,8 @@ class AppState extends ChangeNotifier {
           notifyListeners();
           // Trigger initial sync after successful OAuth
           await sync();
+          // Start polling for remote changes.
+          _syncService.startRemotePolling(() => _data);
         }
       }
     }
@@ -352,6 +405,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    _syncService.stopRemotePolling();
     await dropboxService.signOut();
     notifyListeners();
   }
@@ -362,6 +416,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
+      _syncService.stopRemotePolling();
       _data = await _syncService.fullSync(_data);
       _ensureDefaults();
       await _storage.save(_data);
@@ -371,6 +426,8 @@ class AppState extends ChangeNotifier {
 
     _syncing = false;
     notifyListeners();
+    // Restart polling after manual sync.
+    _syncService.startRemotePolling(() => _data);
   }
 
   Future<void> forceUpload() async {
