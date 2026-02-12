@@ -10,6 +10,7 @@ class Task {
   RecurrenceRule? recurrence;
   Set<String> tagIds;
   String listId;
+  int order;
 
   /// For recurring tasks: dates on which the task was explicitly completed.
   Set<DateTime> completedDates;
@@ -24,9 +25,10 @@ class Task {
     this.recurrence,
     Set<String>? tagIds,
     required this.listId,
+    this.order = 0,
     Set<DateTime>? completedDates,
-  })  : tagIds = tagIds ?? {},
-        completedDates = completedDates ?? {};
+  }) : tagIds = tagIds ?? {},
+       completedDates = completedDates ?? {};
 
   bool isCompletedOn(DateTime date) {
     if (recurrence == null) return isCompleted;
@@ -53,37 +55,38 @@ class Task {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'notes': notes,
-        'isCompleted': isCompleted,
-        'createdAt': createdAt.toIso8601String(),
-        'scheduledDate': scheduledDate?.toIso8601String(),
-        'recurrence': recurrence?.toJson(),
-        'tagIds': tagIds.toList(),
-        'listId': listId,
-        'completedDates':
-            completedDates.map((d) => d.toIso8601String()).toList(),
-      };
+    'id': id,
+    'title': title,
+    'notes': notes,
+    'isCompleted': isCompleted,
+    'createdAt': createdAt.toIso8601String(),
+    'scheduledDate': scheduledDate?.toIso8601String(),
+    'recurrence': recurrence?.toJson(),
+    'tagIds': tagIds.toList(),
+    'listId': listId,
+    'order': order,
+    'completedDates': completedDates.map((d) => d.toIso8601String()).toList(),
+  };
 
   factory Task.fromJson(Map<String, dynamic> json) => Task(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        notes: json['notes'] as String? ?? '',
-        isCompleted: json['isCompleted'] as bool? ?? false,
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        scheduledDate: json['scheduledDate'] != null
-            ? DateTime.parse(json['scheduledDate'] as String)
-            : null,
-        recurrence: json['recurrence'] != null
-            ? RecurrenceRule.fromJson(json['recurrence'] as Map<String, dynamic>)
-            : null,
-        tagIds:
-            (json['tagIds'] as List?)?.map((e) => e as String).toSet() ?? {},
-        listId: json['listId'] as String,
-        completedDates: (json['completedDates'] as List?)
-                ?.map((e) => DateTime.parse(e as String))
-                .toSet() ??
-            {},
-      );
+    id: json['id'] as String,
+    title: json['title'] as String,
+    notes: json['notes'] as String? ?? '',
+    isCompleted: json['isCompleted'] as bool? ?? false,
+    createdAt: DateTime.parse(json['createdAt'] as String),
+    scheduledDate: json['scheduledDate'] != null
+        ? DateTime.parse(json['scheduledDate'] as String)
+        : null,
+    recurrence: json['recurrence'] != null
+        ? RecurrenceRule.fromJson(json['recurrence'] as Map<String, dynamic>)
+        : null,
+    tagIds: (json['tagIds'] as List?)?.map((e) => e as String).toSet() ?? {},
+    listId: json['listId'] as String,
+    order: json['order'] as int? ?? 0,
+    completedDates:
+        (json['completedDates'] as List?)
+            ?.map((e) => DateTime.parse(e as String))
+            .toSet() ??
+        {},
+  );
 }

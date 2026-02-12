@@ -22,18 +22,20 @@ class TagManagerDialog extends StatelessWidget {
                   ? const Center(child: Text('No tags yet'))
                   : ListView(
                       children: state.tags
-                          .map((tag) => ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: tag.color,
-                                  radius: 12,
-                                ),
-                                title: Text(tag.name),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete, size: 18),
-                                  onPressed: () => state.deleteTag(tag.id),
-                                ),
-                                onTap: () => _editTag(context, state, tag),
-                              ))
+                          .map(
+                            (tag) => ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: tag.color,
+                                radius: 12,
+                              ),
+                              title: Text(tag.name),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete, size: 18),
+                                onPressed: () => state.deleteTag(tag.id),
+                              ),
+                              onTap: () => _editTag(context, state, tag),
+                            ),
+                          )
                           .toList(),
                     ),
             ),
@@ -130,11 +132,9 @@ class TagManagerDialog extends StatelessWidget {
                   tag.colorValue = colorValue;
                   state.updateTag(tag);
                 } else {
-                  state.addTag(Tag(
-                    id: state.newId(),
-                    name: name,
-                    colorValue: colorValue,
-                  ));
+                  state.addTag(
+                    Tag(id: state.newId(), name: name, colorValue: colorValue),
+                  );
                 }
                 Navigator.pop(ctx);
               },

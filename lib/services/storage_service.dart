@@ -40,7 +40,7 @@ class StorageService {
   Future<void> save(AppData data) async {
     data.lastModified = DateTime.now();
     final json = jsonEncode(data.toJson());
-    
+
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_webKey, json);

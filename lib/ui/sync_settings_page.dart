@@ -67,25 +67,23 @@ class SyncSettingsPage extends StatelessWidget {
                     leading: const Icon(Icons.sync),
                     title: const Text('Sync now'),
                     subtitle: const Text(
-                        'Downloads if remote is newer, uploads otherwise'),
+                      'Downloads if remote is newer, uploads otherwise',
+                    ),
                     onTap: state.syncing ? null : () => state.sync(),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.cloud_upload),
                     title: const Text('Force upload'),
-                    subtitle:
-                        const Text('Overwrite remote with local data'),
+                    subtitle: const Text('Overwrite remote with local data'),
                     onTap: state.syncing ? null : () => state.forceUpload(),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.cloud_download),
                     title: const Text('Force download'),
-                    subtitle:
-                        const Text('Overwrite local with remote data'),
-                    onTap:
-                        state.syncing ? null : () => state.forceDownload(),
+                    subtitle: const Text('Overwrite local with remote data'),
+                    onTap: state.syncing ? null : () => state.forceDownload(),
                   ),
                 ],
               ),
@@ -105,8 +103,10 @@ class SyncSettingsPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('About sync',
-                      style: Theme.of(context).textTheme.titleSmall),
+                  Text(
+                    'About sync',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
                   const SizedBox(height: 8),
                   const Text(
                     'Your data is stored in Dropbox\'s app folder which is '

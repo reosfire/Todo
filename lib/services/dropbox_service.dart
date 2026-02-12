@@ -118,8 +118,10 @@ class DropboxService {
     );
 
     if (response.statusCode != 200) {
-      throw Exception('Dropbox upload failed (${response.statusCode}): '
-          '${response.body}');
+      throw Exception(
+        'Dropbox upload failed (${response.statusCode}): '
+        '${response.body}',
+      );
     }
   }
 
@@ -139,8 +141,10 @@ class DropboxService {
       return null;
     }
     if (response.statusCode != 200) {
-      throw Exception('Dropbox download failed (${response.statusCode}): '
-          '${response.body}');
+      throw Exception(
+        'Dropbox download failed (${response.statusCode}): '
+        '${response.body}',
+      );
     }
 
     final map = jsonDecode(response.body) as Map<String, dynamic>;
@@ -229,7 +233,9 @@ class DropboxService {
   Future<void> _ensureValidToken() async {
     if (_accessToken == null) throw Exception('Not signed in to Dropbox');
     if (_expiresAt != null &&
-        DateTime.now().isAfter(_expiresAt!.subtract(const Duration(minutes: 5)))) {
+        DateTime.now().isAfter(
+          _expiresAt!.subtract(const Duration(minutes: 5)),
+        )) {
       await _refreshAccessToken();
     }
   }
@@ -238,8 +244,10 @@ class DropboxService {
 
   Future<void> _saveTokens() async {
     final prefs = await SharedPreferences.getInstance();
-    if (_accessToken != null) await prefs.setString(_keyAccessToken, _accessToken!);
-    if (_refreshToken != null) await prefs.setString(_keyRefreshToken, _refreshToken!);
+    if (_accessToken != null)
+      await prefs.setString(_keyAccessToken, _accessToken!);
+    if (_refreshToken != null)
+      await prefs.setString(_keyRefreshToken, _refreshToken!);
     if (_expiresAt != null) {
       await prefs.setString(_keyExpiresAt, _expiresAt!.toIso8601String());
     }

@@ -19,18 +19,18 @@ class TaskList {
   Color get color => Color(colorValue);
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'iconCodePoint': iconCodePoint,
-        'colorValue': colorValue,
-        'folderId': folderId,
-      };
+    'id': id,
+    'name': name,
+    'iconCodePoint': iconCodePoint,
+    'colorValue': colorValue,
+    'folderId': folderId,
+  };
 
   factory TaskList.fromJson(Map<String, dynamic> json) => TaskList(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        iconCodePoint: json['iconCodePoint'] as int? ?? 0xe16a,
-        colorValue: json['colorValue'] as int? ?? 0xFF42A5F5,
-        folderId: json['folderId'] as String?,
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    iconCodePoint: json['iconCodePoint'] as int? ?? 0xe16a,
+    colorValue: json['colorValue'] as int? ?? 0xFF42A5F5,
+    folderId: json['folderId'] as String?,
+  );
 }

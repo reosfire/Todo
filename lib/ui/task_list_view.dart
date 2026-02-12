@@ -14,8 +14,9 @@ class TaskListView extends StatelessWidget {
     final state = context.watch<AppState>();
     final tasks = state.tasksForList(listId);
     final pending = tasks.where((t) => !t.isCompleted).toList()
-      ..sort(_compareTasksByDate);
-    final completed = tasks.where((t) => t.isCompleted).toList();
+      ..sort((a, b) => a.order.compareTo(b.order));
+    final completed = tasks.where((t) => t.isCompleted).toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
 
     return Scaffold(
       body: tasks.isEmpty
@@ -23,12 +24,16 @@ class TaskListView extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_circle_outline,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outlineVariant),
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                   const SizedBox(height: 12),
-                  Text('No tasks yet',
-                      style: Theme.of(context).textTheme.bodyLarge),
+                  Text(
+                    'No tasks yet',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
                 ],
               ),
             )
@@ -39,15 +44,29 @@ class TaskListView extends StatelessWidget {
                 _reorderTasks(state, pending, completed, oldIndex, newIndex);
               },
               children: [
-                ...pending.map((t) => _TaskTile(key: ValueKey(t.id), task: t)),
+                ...pending.asMap().entries.map(
+                  (e) => _TaskTile(
+                    key: ValueKey(e.value.id),
+                    task: e.value,
+                    index: e.key,
+                  ),
+                ),
                 if (completed.isNotEmpty) ...[
                   Padding(
                     key: const ValueKey('completed_header'),
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                    child: const Text('Completed',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      'Completed',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
-                  ...completed.map((t) => _TaskTile(key: ValueKey(t.id), task: t)),
+                  ...completed.asMap().entries.map(
+                    (e) => _TaskTile(
+                      key: ValueKey(e.value.id),
+                      task: e.value,
+                      index: pending.length + e.key,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -58,20 +77,43 @@ class TaskListView extends StatelessWidget {
     );
   }
 
-  int _compareTasksByDate(Task a, Task b) {
-    if (a.scheduledDate == null && b.scheduledDate == null) return 0;
-    if (a.scheduledDate == null) return 1;
-    if (b.scheduledDate == null) return -1;
-    return a.scheduledDate!.compareTo(b.scheduledDate!);
-  }
+  void _reorderTasks(
+    AppState state,
+    List<Task> pending,
+    List<Task> completed,
+    int oldIndex,
+    int newIndex,
+  ) {
+    // Don't allow reordering between pending and completed sections
+    if (oldIndex >= pending.length && newIndex < pending.length) return;
+    if (oldIndex < pending.length && newIndex >= pending.length) return;
 
-  void _reorderTasks(AppState state, List<Task> pending, List<Task> completed,
-      int oldIndex, int newIndex) {
     final allTasks = [...pending, ...completed];
     if (oldIndex < newIndex) newIndex--;
     final task = allTasks.removeAt(oldIndex);
     allTasks.insert(newIndex, task);
-    // Note: Actual reordering persistence would require adding an 'order' field to Task model
+
+    // Update order field for all affected tasks by creating new Task instances
+    final updatedTasks = <Task>[];
+    for (var i = 0; i < allTasks.length; i++) {
+      final t = allTasks[i];
+      updatedTasks.add(
+        Task(
+          id: t.id,
+          title: t.title,
+          notes: t.notes,
+          isCompleted: t.isCompleted,
+          createdAt: t.createdAt,
+          scheduledDate: t.scheduledDate,
+          recurrence: t.recurrence,
+          tagIds: t.tagIds,
+          listId: t.listId,
+          order: i,
+          completedDates: t.completedDates,
+        ),
+      );
+    }
+    state.updateTasks(updatedTasks);
   }
 
   void _addTask(BuildContext context, AppState state) {
@@ -95,7 +137,12 @@ class TaskListView extends StatelessWidget {
 
 class _TaskTile extends StatefulWidget {
   final Task task;
-  const _TaskTile({required super.key, required this.task});
+  final int index;
+  const _TaskTile({
+    required super.key,
+    required this.task,
+    required this.index,
+  });
 
   @override
   State<_TaskTile> createState() => _TaskTileState();
@@ -110,6 +157,11 @@ class _TaskTileState extends State<_TaskTile> {
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.task.title);
+    _focusNode.addListener(() {
+      if (!_focusNode.hasFocus && _isEditing) {
+        _saveTitle();
+      }
+    });
   }
 
   @override
@@ -131,6 +183,10 @@ class _TaskTileState extends State<_TaskTile> {
   }
 
   void _saveTitle() {
+    if (!mounted) return;
+
+    _focusNode.unfocus();
+
     final state = context.read<AppState>();
     final newTitle = _controller.text.trim();
     if (newTitle.isNotEmpty && newTitle != widget.task.title) {
@@ -144,11 +200,14 @@ class _TaskTileState extends State<_TaskTile> {
         recurrence: widget.task.recurrence,
         tagIds: widget.task.tagIds,
         listId: widget.task.listId,
+        order: widget.task.order,
         completedDates: widget.task.completedDates,
       );
       state.updateTask(updated);
     }
-    setState(() => _isEditing = false);
+    if (mounted) {
+      setState(() => _isEditing = false);
+    }
   }
 
   void _showEditDialog(BuildContext context, Offset position) {
@@ -197,78 +256,86 @@ class _TaskTileState extends State<_TaskTile> {
           onSecondaryTap: () {},
           behavior: HitTestBehavior.opaque,
           child: ListTile(
-          leading: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ReorderableDragStartListener(
-                index: 0,
-                child: Icon(
-                  Icons.drag_indicator,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Checkbox(
-                value: completed,
-                onChanged: (_) => state.toggleTask(widget.task),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ],
-          ),
-          title: _isEditing
-              ? TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  onSubmitted: (_) => _saveTitle(),
-                  onTapOutside: (_) => _saveTitle(),
-                )
-              : Text(
-                  widget.task.title,
-                  style: TextStyle(
-                    decoration: completed ? TextDecoration.lineThrough : null,
-                    color: completed
-                        ? Theme.of(context).colorScheme.onSurfaceVariant
-                        : null,
+            leading: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ReorderableDragStartListener(
+                  index: widget.index,
+                  child: Icon(
+                    Icons.drag_indicator,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-          subtitle: _buildSubtitle(context),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (isRecurring)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Icon(Icons.repeat,
+                const SizedBox(width: 8),
+                Checkbox(
+                  value: completed,
+                  onChanged: (_) => state.toggleTask(widget.task),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+            title: _isEditing
+                ? TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    onSubmitted: (_) => _saveTitle(),
+                    onTapOutside: (_) => _saveTitle(),
+                  )
+                : Text(
+                    widget.task.title,
+                    style: TextStyle(
+                      decoration: completed ? TextDecoration.lineThrough : null,
+                      color: completed
+                          ? Theme.of(context).colorScheme.onSurfaceVariant
+                          : null,
+                    ),
+                  ),
+            subtitle: _buildSubtitle(context),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isRecurring)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(
+                      Icons.repeat,
                       size: 16,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert, size: 20),
+                  onPressed: () {
+                    final RenderBox button =
+                        context.findRenderObject() as RenderBox;
+                    final Offset buttonPosition = button.localToGlobal(
+                      Offset.zero,
+                    );
+                    _showEditDialog(
+                      context,
+                      Offset(
+                        buttonPosition.dx,
+                        buttonPosition.dy + button.size.height,
+                      ),
+                    );
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
-              IconButton(
-                icon: const Icon(Icons.more_vert, size: 20),
-                onPressed: () {
-                  final RenderBox button = context.findRenderObject() as RenderBox;
-                  final Offset buttonPosition = button.localToGlobal(Offset.zero);
-                  _showEditDialog(
-                    context,
-                    Offset(buttonPosition.dx, buttonPosition.dy + button.size.height),
-                  );
-                },
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-            ],
+              ],
+            ),
+            onTap: () {
+              if (!_isEditing) _startEditing();
+            },
           ),
-          onTap: () {
-            if (!_isEditing) _startEditing();
-          },
-        ),
         ),
       ),
     );
@@ -279,34 +346,39 @@ class _TaskTileState extends State<_TaskTile> {
     final parts = <Widget>[];
 
     if (widget.task.scheduledDate != null) {
-      parts.add(Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.calendar_today,
+      parts.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.calendar_today,
               size: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant),
-          const SizedBox(width: 4),
-          Text(
-            DateFormat.MMMd().format(widget.task.scheduledDate!),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ));
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              DateFormat.MMMd().format(widget.task.scheduledDate!),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      );
     }
 
     final tagWidgets = widget.task.tagIds
         .map((id) => state.tagById(id))
         .where((t) => t != null)
-        .map((t) => Container(
-              margin: const EdgeInsets.only(right: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: t!.color.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(t.name,
-                  style: TextStyle(fontSize: 11, color: t.color)),
-            ))
+        .map(
+          (t) => Container(
+            margin: const EdgeInsets.only(right: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: t!.color.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(t.name, style: TextStyle(fontSize: 11, color: t.color)),
+          ),
+        )
         .toList();
 
     if (tagWidgets.isNotEmpty) {

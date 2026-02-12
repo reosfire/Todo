@@ -59,7 +59,8 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
   }
 
   void _measureAndPosition() {
-    final renderBox = _dialogKey.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox =
+        _dialogKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
 
     final dialogSize = renderBox.size;
@@ -71,7 +72,10 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
       Offset(clickPosition.dx, clickPosition.dy),
       Offset(clickPosition.dx, clickPosition.dy - dialogSize.height),
       Offset(clickPosition.dx - dialogSize.width, clickPosition.dy),
-      Offset(clickPosition.dx - dialogSize.width, clickPosition.dy - dialogSize.height),
+      Offset(
+        clickPosition.dx - dialogSize.width,
+        clickPosition.dy - dialogSize.height,
+      ),
     ];
 
     // Find first position that fits
@@ -112,7 +116,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    
+
     final dialog = Card(
       elevation: 8,
       child: Container(
@@ -131,118 +135,124 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
             // Content
             Flexible(
               child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _titleCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
-                ),
-                autofocus: !_isEditing,
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _notesCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Notes',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _titleCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        border: OutlineInputBorder(),
+                      ),
+                      autofocus: !_isEditing,
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _notesCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
 
-              // List picker
-              DropdownButtonFormField<String>(
-                initialValue: _listId,
-                decoration: const InputDecoration(
-                  labelText: 'List',
-                  border: OutlineInputBorder(),
-                ),
-                items: state.lists
-                    .map((l) => DropdownMenuItem(
-                          value: l.id,
-                          child: Text(l.name),
-                        ))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setState(() => _listId = v);
-                },
-              ),
-              const SizedBox(height: 16),
+                    // List picker
+                    DropdownButtonFormField<String>(
+                      initialValue: _listId,
+                      decoration: const InputDecoration(
+                        labelText: 'List',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: state.lists
+                          .map(
+                            (l) => DropdownMenuItem(
+                              value: l.id,
+                              child: Text(l.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setState(() => _listId = v);
+                      },
+                    ),
+                    const SizedBox(height: 16),
 
-              // Scheduled date
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.calendar_today),
-                title: Text(_scheduledDate != null
-                    ? DateFormat.yMMMd().format(_scheduledDate!)
-                    : 'No date'),
-                trailing: _scheduledDate != null
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () =>
-                            setState(() => _scheduledDate = null),
-                      )
-                    : null,
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _scheduledDate ?? DateTime.now(),
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2100),
-                  );
-                  if (picked != null) {
-                    setState(() => _scheduledDate = picked);
-                  }
-                },
-              ),
-
-              // Recurrence
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.repeat),
-                title: Text(_recurrence?.describe() ?? 'No repeat'),
-                trailing: _recurrence != null
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () =>
-                            setState(() => _recurrence = null),
-                      )
-                    : null,
-                onTap: () => _showRecurrencePicker(),
-              ),
-
-              // Tags
-              const SizedBox(height: 8),
-              const Text('Tags',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 6,
-                children: state.tags.map((tag) {
-                  final selected = _tagIds.contains(tag.id);
-                  return FilterChip(
-                    label: Text(tag.name),
-                    selected: selected,
-                    selectedColor: tag.color.withValues(alpha: 0.3),
-                    onSelected: (v) {
-                      setState(() {
-                        if (v) {
-                          _tagIds.add(tag.id);
-                        } else {
-                          _tagIds.remove(tag.id);
+                    // Scheduled date
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.calendar_today),
+                      title: Text(
+                        _scheduledDate != null
+                            ? DateFormat.yMMMd().format(_scheduledDate!)
+                            : 'No date',
+                      ),
+                      trailing: _scheduledDate != null
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () =>
+                                  setState(() => _scheduledDate = null),
+                            )
+                          : null,
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _scheduledDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setState(() => _scheduledDate = picked);
                         }
-                      });
-                    },
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
+                      },
+                    ),
+
+                    // Recurrence
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.repeat),
+                      title: Text(_recurrence?.describe() ?? 'No repeat'),
+                      trailing: _recurrence != null
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () =>
+                                  setState(() => _recurrence = null),
+                            )
+                          : null,
+                      onTap: () => _showRecurrencePicker(),
+                    ),
+
+                    // Tags
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Tags',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      children: state.tags.map((tag) {
+                        final selected = _tagIds.contains(tag.id);
+                        return FilterChip(
+                          label: Text(tag.name),
+                          selected: selected,
+                          selectedColor: tag.color.withValues(alpha: 0.3),
+                          onSelected: (v) {
+                            setState(() {
+                              if (v) {
+                                _tagIds.add(tag.id);
+                              } else {
+                                _tagIds.remove(tag.id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -256,8 +266,10 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
                       state.deleteTask(widget.existingTask!.id);
                       Navigator.pop(context);
                     },
-                    child: const Text('Delete',
-                        style: TextStyle(color: Colors.red)),
+                    child: const Text(
+                      'Delete',
+                      style: TextStyle(color: Colors.red),
+                    ),
                   ),
                 const SizedBox(width: 8),
                 TextButton(
@@ -285,10 +297,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
           top: position.dy,
           child: Material(
             type: MaterialType.transparency,
-            child: Container(
-              key: _dialogKey,
-              child: dialog,
-            ),
+            child: Container(key: _dialogKey, child: dialog),
           ),
         ),
       ],
@@ -310,16 +319,23 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
       task.listId = _listId;
       state.updateTask(task);
     } else {
-      state.addTask(Task(
-        id: state.newId(),
-        title: title,
-        notes: _notesCtrl.text.trim(),
-        createdAt: DateTime.now(),
-        scheduledDate: _scheduledDate,
-        recurrence: _recurrence,
-        tagIds: _tagIds,
-        listId: _listId,
-      ));
+      final maxOrder = state.tasks.isEmpty
+          ? 0
+          : state.tasks.map((t) => t.order).reduce((a, b) => a > b ? a : b);
+
+      state.addTask(
+        Task(
+          id: state.newId(),
+          title: title,
+          notes: _notesCtrl.text.trim(),
+          createdAt: DateTime.now(),
+          scheduledDate: _scheduledDate,
+          recurrence: _recurrence,
+          tagIds: _tagIds,
+          listId: _listId,
+          order: maxOrder + 1,
+        ),
+      );
     }
     Navigator.pop(context);
   }
@@ -333,9 +349,10 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
           children: [
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Repeat',
-                  style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
+              child: Text(
+                'Repeat',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
             ),
             ListTile(
               title: const Text('Every day'),
@@ -370,8 +387,9 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
               title: const Text('Yearly on this date'),
               onTap: () {
                 final d = _scheduledDate ?? DateTime.now();
-                setState(() =>
-                    _recurrence = RecurrenceRule.yearly(d.month, d.day));
+                setState(
+                  () => _recurrence = RecurrenceRule.yearly(d.month, d.day),
+                );
                 Navigator.pop(ctx);
               },
             ),
@@ -395,8 +413,9 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
                 width: 60,
                 child: TextField(
                   keyboardType: TextInputType.number,
-                  decoration:
-                      const InputDecoration(border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
                   onChanged: (v) {
                     final parsed = int.tryParse(v);
                     if (parsed != null && parsed > 0) n = parsed;
@@ -414,8 +433,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
             ),
             FilledButton(
               onPressed: () {
-                setState(
-                    () => _recurrence = RecurrenceRule.everyNDays(n));
+                setState(() => _recurrence = RecurrenceRule.everyNDays(n));
                 Navigator.pop(ctx);
               },
               child: const Text('OK'),
@@ -461,8 +479,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
             FilledButton(
               onPressed: () {
                 if (selected.isNotEmpty) {
-                  setState(() =>
-                      _recurrence = RecurrenceRule.weekly(selected));
+                  setState(() => _recurrence = RecurrenceRule.weekly(selected));
                 }
                 Navigator.pop(ctx);
               },

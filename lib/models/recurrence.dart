@@ -1,8 +1,8 @@
 enum RecurrenceType {
   everyNDays,
-  weekday,   // specific day(s) of the week
-  monthDay,  // specific day of the month
-  yearDay,   // specific month+day of the year
+  weekday, // specific day(s) of the week
+  monthDay, // specific day of the month
+  yearDay, // specific month+day of the year
 }
 
 class RecurrenceRule {
@@ -50,10 +50,10 @@ class RecurrenceRule {
 
   /// Same date each year.
   factory RecurrenceRule.yearly(int month, int day) => RecurrenceRule(
-        type: RecurrenceType.yearDay,
-        yearMonth: month,
-        yearDayOfMonth: day,
-      );
+    type: RecurrenceType.yearDay,
+    yearMonth: month,
+    yearDayOfMonth: day,
+  );
 
   /// Check whether a given [date] matches this rule, assuming the task
   /// was first scheduled on [startDate].
@@ -75,23 +75,23 @@ class RecurrenceRule {
   }
 
   Map<String, dynamic> toJson() => {
-        'type': type.index,
-        'interval': interval,
-        'weekdays': weekdays.toList(),
-        'monthDay': monthDay,
-        'yearMonth': yearMonth,
-        'yearDayOfMonth': yearDayOfMonth,
-      };
+    'type': type.index,
+    'interval': interval,
+    'weekdays': weekdays.toList(),
+    'monthDay': monthDay,
+    'yearMonth': yearMonth,
+    'yearDayOfMonth': yearDayOfMonth,
+  };
 
   factory RecurrenceRule.fromJson(Map<String, dynamic> json) => RecurrenceRule(
-        type: RecurrenceType.values[json['type'] as int],
-        interval: json['interval'] as int? ?? 1,
-        weekdays: (json['weekdays'] as List?)?.map((e) => e as int).toSet() ??
-            const {},
-        monthDay: json['monthDay'] as int?,
-        yearMonth: json['yearMonth'] as int?,
-        yearDayOfMonth: json['yearDayOfMonth'] as int?,
-      );
+    type: RecurrenceType.values[json['type'] as int],
+    interval: json['interval'] as int? ?? 1,
+    weekdays:
+        (json['weekdays'] as List?)?.map((e) => e as int).toSet() ?? const {},
+    monthDay: json['monthDay'] as int?,
+    yearMonth: json['yearMonth'] as int?,
+    yearDayOfMonth: json['yearDayOfMonth'] as int?,
+  );
 
   String describe() {
     switch (type) {
@@ -115,8 +115,18 @@ class RecurrenceRule {
       case RecurrenceType.yearDay:
         const monthNames = [
           '',
-          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
         ];
         return 'Yearly on ${monthNames[yearMonth!]} $yearDayOfMonth';
     }

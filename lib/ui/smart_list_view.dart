@@ -21,12 +21,16 @@ class SmartListView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.inbox_outlined,
-                size: 64,
-                color: Theme.of(context).colorScheme.outlineVariant),
+            Icon(
+              Icons.inbox_outlined,
+              size: 64,
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
             const SizedBox(height: 12),
-            Text('No matching tasks',
-                style: Theme.of(context).textTheme.bodyLarge),
+            Text(
+              'No matching tasks',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
           ],
         ),
       );
@@ -80,9 +84,11 @@ class _SmartTaskTile extends StatelessWidget {
       ),
       subtitle: _buildSubtitle(context, listName, tags),
       trailing: task.recurrence != null
-          ? Icon(Icons.repeat,
+          ? Icon(
+              Icons.repeat,
               size: 16,
-              color: Theme.of(context).colorScheme.onSurfaceVariant)
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            )
           : null,
       onTap: () {
         showGeneralDialog(
@@ -108,39 +114,48 @@ class _SmartTaskTile extends StatelessWidget {
   Widget? _buildSubtitle(BuildContext context, String listName, List tags) {
     final parts = <Widget>[];
 
-    parts.add(Text(listName,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontStyle: FontStyle.italic,
-            )));
+    parts.add(
+      Text(
+        listName,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+      ),
+    );
 
     if (task.scheduledDate != null) {
-      parts.add(Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.calendar_today,
+      parts.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.calendar_today,
               size: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant),
-          const SizedBox(width: 4),
-          Text(
-            DateFormat.MMMd().format(task.scheduledDate!),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ));
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              DateFormat.MMMd().format(task.scheduledDate!),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      );
     }
 
     final tagWidgets = tags
         .where((t) => t != null)
-        .map((t) => Container(
-              margin: const EdgeInsets.only(right: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: t!.color.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(t.name,
-                  style: TextStyle(fontSize: 11, color: t.color)),
-            ))
+        .map(
+          (t) => Container(
+            margin: const EdgeInsets.only(right: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: t!.color.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(t.name, style: TextStyle(fontSize: 11, color: t.color)),
+          ),
+        )
         .toList();
 
     if (tagWidgets.isNotEmpty) {

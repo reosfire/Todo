@@ -167,15 +167,17 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Todo',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onPrimaryContainer,
-                        )),
+                Text(
+                  'Todo',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
                 if (state.isSignedIn)
-                  Text('Syncing with Dropbox',
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    'Syncing with Dropbox',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
               ],
             ),
           ),
@@ -185,13 +187,15 @@ class _HomePageState extends State<HomePage> {
               children: [
                 // Smart lists
                 const _SectionHeader('SMART LISTS'),
-                ...state.smartLists.map((sl) => ListTile(
-                      leading: Icon(sl.icon, color: sl.color),
-                      title: Text(sl.name),
-                      selected: _selectedSmartListId == sl.id,
-                      onTap: () => _selectSmartList(sl.id),
-                      dense: true,
-                    )),
+                ...state.smartLists.map(
+                  (sl) => ListTile(
+                    leading: Icon(sl.icon, color: sl.color),
+                    title: Text(sl.name),
+                    selected: _selectedSmartListId == sl.id,
+                    onTap: () => _selectSmartList(sl.id),
+                    dense: true,
+                  ),
+                ),
                 ListTile(
                   leading: const Icon(Icons.add, size: 20),
                   title: const Text('Add Smart List'),
@@ -210,7 +214,10 @@ class _HomePageState extends State<HomePage> {
                   onTap: () => _showListEditor(context, state, null),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.create_new_folder_outlined, size: 20),
+                  leading: const Icon(
+                    Icons.create_new_folder_outlined,
+                    size: 20,
+                  ),
                   title: const Text('Add Folder'),
                   dense: true,
                   onTap: () => _showFolderEditor(context, state, null),
@@ -257,8 +264,7 @@ class _HomePageState extends State<HomePage> {
     final widgets = <Widget>[];
 
     // Lists not in any folder
-    final orphanLists =
-        state.lists.where((l) => l.folderId == null).toList();
+    final orphanLists = state.lists.where((l) => l.folderId == null).toList();
     for (final list in orphanLists) {
       widgets.add(_buildListTile(state, list));
     }
@@ -276,10 +282,12 @@ class _HomePageState extends State<HomePage> {
           ),
           children: state.lists
               .where((l) => l.folderId == folder.id)
-              .map((l) => Padding(
-                    padding: const EdgeInsets.only(left: 16),
-                    child: _buildListTile(state, l),
-                  ))
+              .map(
+                (l) => Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: _buildListTile(state, l),
+                ),
+              )
               .toList(),
         ),
       );
@@ -289,8 +297,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildListTile(AppState state, TaskList list) {
-    final count =
-        state.tasks.where((t) => t.listId == list.id && !t.isCompleted).length;
+    final count = state.tasks
+        .where((t) => t.listId == list.id && !t.isCompleted)
+        .length;
     return ListTile(
       leading: Icon(list.icon, color: list.color, size: 20),
       title: Text(list.name),
@@ -332,10 +341,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showSmartListEditor(BuildContext ctx, AppState state) {
-    showDialog(
-      context: ctx,
-      builder: (_) => const SmartListEditorDialog(),
-    );
+    showDialog(context: ctx, builder: (_) => const SmartListEditorDialog());
   }
 
   void _showListMenu(BuildContext ctx, AppState state, TaskList list) {
@@ -361,8 +367,9 @@ class _HomePageState extends State<HomePage> {
                 state.deleteList(list.id);
                 if (_selectedListId == list.id) {
                   setState(() {
-                    _selectedListId =
-                        state.lists.isNotEmpty ? state.lists.first.id : null;
+                    _selectedListId = state.lists.isNotEmpty
+                        ? state.lists.first.id
+                        : null;
                   });
                 }
               },
@@ -414,9 +421,9 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              letterSpacing: 1.2,
-            ),
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          letterSpacing: 1.2,
+        ),
       ),
     );
   }

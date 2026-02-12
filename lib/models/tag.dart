@@ -10,14 +10,14 @@ class Tag {
   Color get color => Color(colorValue);
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'colorValue': colorValue,
-      };
+    'id': id,
+    'name': name,
+    'colorValue': colorValue,
+  };
 
   factory Tag.fromJson(Map<String, dynamic> json) => Tag(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        colorValue: json['colorValue'] as int? ?? 0xFF42A5F5,
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    colorValue: json['colorValue'] as int? ?? 0xFF42A5F5,
+  );
 }

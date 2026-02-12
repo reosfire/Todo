@@ -72,10 +72,9 @@ class _ListEditorDialogState extends State<ListEditorDialog> {
               ),
               items: [
                 const DropdownMenuItem(value: null, child: Text('None')),
-                ...state.folders.map((f) => DropdownMenuItem(
-                      value: f.id,
-                      child: Text(f.name),
-                    )),
+                ...state.folders.map(
+                  (f) => DropdownMenuItem(value: f.id, child: Text(f.name)),
+                ),
               ],
               onChanged: (v) => setState(() => _folderId = v),
             ),
@@ -121,12 +120,14 @@ class _ListEditorDialogState extends State<ListEditorDialog> {
               list.colorValue = _colorValue;
               state.updateList(list);
             } else {
-              state.addList(TaskList(
-                id: state.newId(),
-                name: name,
-                folderId: _folderId,
-                colorValue: _colorValue,
-              ));
+              state.addList(
+                TaskList(
+                  id: state.newId(),
+                  name: name,
+                  folderId: _folderId,
+                  colorValue: _colorValue,
+                ),
+              );
             }
             Navigator.pop(context);
           },

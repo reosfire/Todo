@@ -71,23 +71,33 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
                 ),
                 items: const [
                   DropdownMenuItem(
-                      value: SmartFilterType.today, child: Text('Today')),
+                    value: SmartFilterType.today,
+                    child: Text('Today'),
+                  ),
                   DropdownMenuItem(
-                      value: SmartFilterType.upcoming,
-                      child: Text('Upcoming (N days)')),
+                    value: SmartFilterType.upcoming,
+                    child: Text('Upcoming (N days)'),
+                  ),
                   DropdownMenuItem(
-                      value: SmartFilterType.overdue, child: Text('Overdue')),
+                    value: SmartFilterType.overdue,
+                    child: Text('Overdue'),
+                  ),
                   DropdownMenuItem(
-                      value: SmartFilterType.dateRange,
-                      child: Text('Date range')),
+                    value: SmartFilterType.dateRange,
+                    child: Text('Date range'),
+                  ),
                   DropdownMenuItem(
-                      value: SmartFilterType.tags, child: Text('By tags')),
+                    value: SmartFilterType.tags,
+                    child: Text('By tags'),
+                  ),
                   DropdownMenuItem(
-                      value: SmartFilterType.completed,
-                      child: Text('Completed')),
+                    value: SmartFilterType.completed,
+                    child: Text('Completed'),
+                  ),
                   DropdownMenuItem(
-                      value: SmartFilterType.all,
-                      child: Text('All incomplete')),
+                    value: SmartFilterType.all,
+                    child: Text('All incomplete'),
+                  ),
                 ],
                 onChanged: (v) {
                   if (v != null) setState(() => _filterType = v);
@@ -104,10 +114,10 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
                       width: 60,
                       child: TextField(
                         keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(border: OutlineInputBorder()),
-                        controller:
-                            TextEditingController(text: '$_daysAhead'),
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                        ),
+                        controller: TextEditingController(text: '$_daysAhead'),
                         onChanged: (v) {
                           final parsed = int.tryParse(v);
                           if (parsed != null && parsed > 0) _daysAhead = parsed;
@@ -147,9 +157,11 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
                 const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(_dateFrom != null
-                      ? 'From: ${_dateFrom.toString().substring(0, 10)}'
-                      : 'From: (any)'),
+                  title: Text(
+                    _dateFrom != null
+                        ? 'From: ${_dateFrom.toString().substring(0, 10)}'
+                        : 'From: (any)',
+                  ),
                   onTap: () async {
                     final d = await showDatePicker(
                       context: context,
@@ -162,9 +174,11 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(_dateTo != null
-                      ? 'To: ${_dateTo.toString().substring(0, 10)}'
-                      : 'To: (any)'),
+                  title: Text(
+                    _dateTo != null
+                        ? 'To: ${_dateTo.toString().substring(0, 10)}'
+                        : 'To: (any)',
+                  ),
                   onTap: () async {
                     final d = await showDatePicker(
                       context: context,
@@ -220,11 +234,9 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
       sl.filter = filter;
       state.updateSmartList(sl);
     } else {
-      state.addSmartList(SmartList(
-        id: state.newId(),
-        name: name,
-        filter: filter,
-      ));
+      state.addSmartList(
+        SmartList(id: state.newId(), name: name, filter: filter),
+      );
     }
     Navigator.pop(context);
   }

@@ -3,7 +3,7 @@ import 'task.dart';
 
 enum SmartFilterType {
   today,
-  upcoming,     // next 7 days
+  upcoming, // next 7 days
   overdue,
   dateRange,
   tags,
@@ -34,8 +34,7 @@ class SmartFilter {
     this.daysAhead = 7,
   });
 
-  factory SmartFilter.today() =>
-      const SmartFilter(type: SmartFilterType.today);
+  factory SmartFilter.today() => const SmartFilter(type: SmartFilterType.today);
 
   factory SmartFilter.upcoming([int days = 7]) =>
       SmartFilter(type: SmartFilterType.upcoming, daysAhead: days);
@@ -46,8 +45,7 @@ class SmartFilter {
   factory SmartFilter.completed() =>
       const SmartFilter(type: SmartFilterType.completed);
 
-  factory SmartFilter.all() =>
-      const SmartFilter(type: SmartFilterType.all);
+  factory SmartFilter.all() => const SmartFilter(type: SmartFilterType.all);
 
   factory SmartFilter.byTags(Set<String> tagIds) =>
       SmartFilter(type: SmartFilterType.tags, tagIds: tagIds);
@@ -101,25 +99,24 @@ class SmartFilter {
   }
 
   Map<String, dynamic> toJson() => {
-        'type': type.index,
-        'dateFrom': dateFrom?.toIso8601String(),
-        'dateTo': dateTo?.toIso8601String(),
-        'tagIds': tagIds.toList(),
-        'daysAhead': daysAhead,
-      };
+    'type': type.index,
+    'dateFrom': dateFrom?.toIso8601String(),
+    'dateTo': dateTo?.toIso8601String(),
+    'tagIds': tagIds.toList(),
+    'daysAhead': daysAhead,
+  };
 
   factory SmartFilter.fromJson(Map<String, dynamic> json) => SmartFilter(
-        type: SmartFilterType.values[json['type'] as int],
-        dateFrom: json['dateFrom'] != null
-            ? DateTime.parse(json['dateFrom'] as String)
-            : null,
-        dateTo: json['dateTo'] != null
-            ? DateTime.parse(json['dateTo'] as String)
-            : null,
-        tagIds:
-            (json['tagIds'] as List?)?.map((e) => e as String).toSet() ?? {},
-        daysAhead: json['daysAhead'] as int? ?? 7,
-      );
+    type: SmartFilterType.values[json['type'] as int],
+    dateFrom: json['dateFrom'] != null
+        ? DateTime.parse(json['dateFrom'] as String)
+        : null,
+    dateTo: json['dateTo'] != null
+        ? DateTime.parse(json['dateTo'] as String)
+        : null,
+    tagIds: (json['tagIds'] as List?)?.map((e) => e as String).toSet() ?? {},
+    daysAhead: json['daysAhead'] as int? ?? 7,
+  );
 }
 
 class SmartList {
@@ -144,18 +141,18 @@ class SmartList {
       allTasks.where((t) => filter.matches(t)).toList();
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'iconCodePoint': iconCodePoint,
-        'colorValue': colorValue,
-        'filter': filter.toJson(),
-      };
+    'id': id,
+    'name': name,
+    'iconCodePoint': iconCodePoint,
+    'colorValue': colorValue,
+    'filter': filter.toJson(),
+  };
 
   factory SmartList.fromJson(Map<String, dynamic> json) => SmartList(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        iconCodePoint: json['iconCodePoint'] as int? ?? 0xe0c8,
-        colorValue: json['colorValue'] as int? ?? 0xFFAB47BC,
-        filter: SmartFilter.fromJson(json['filter'] as Map<String, dynamic>),
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    iconCodePoint: json['iconCodePoint'] as int? ?? 0xe0c8,
+    colorValue: json['colorValue'] as int? ?? 0xFFAB47BC,
+    filter: SmartFilter.fromJson(json['filter'] as Map<String, dynamic>),
+  );
 }

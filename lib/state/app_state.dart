@@ -103,6 +103,14 @@ class AppState extends ChangeNotifier {
     await _save();
   }
 
+  Future<void> updateTasks(List<Task> tasks) async {
+    for (final task in tasks) {
+      final i = _data.tasks.indexWhere((t) => t.id == task.id);
+      if (i >= 0) _data.tasks[i] = task;
+    }
+    await _save();
+  }
+
   Future<void> deleteTask(String id) async {
     _data.tasks.removeWhere((t) => t.id == id);
     await _save();
