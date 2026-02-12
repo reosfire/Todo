@@ -28,12 +28,17 @@ class _TaskListViewState extends State<TaskListView> {
     final title = _newTaskController.text.trim();
     if (title.isEmpty) return;
 
+    final existingTasks = state.tasksForList(widget.listId);
+    final maxOrder = existingTasks.isEmpty
+        ? 0
+        : existingTasks.map((t) => t.order).reduce((a, b) => a > b ? a : b);
+
     final task = Task(
       id: state.newId(),
       title: title,
       createdAt: DateTime.now(),
       listId: widget.listId,
-      order: state.tasksForList(widget.listId).length,
+      order: maxOrder + 1,
     );
     state.addTask(task);
     _newTaskController.clear();
@@ -45,9 +50,9 @@ class _TaskListViewState extends State<TaskListView> {
     final state = context.watch<AppState>();
     final tasks = state.tasksForList(widget.listId);
     final pending = tasks.where((t) => !t.isCompleted).toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
+      ..sort((a, b) => b.order.compareTo(a.order));
     final completed = tasks.where((t) => t.isCompleted).toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
+      ..sort((a, b) => b.order.compareTo(a.order));
 
     return Scaffold(
       body: Column(
@@ -119,7 +124,13 @@ class _TaskListViewState extends State<TaskListView> {
                     padding: const EdgeInsets.only(bottom: 16),
                     buildDefaultDragHandles: false,
                     onReorder: (oldIndex, newIndex) {
-                      _reorderTasks(state, pending, completed, oldIndex, newIndex);
+                      _reorderTasks(
+                        state,
+                        pending,
+                        completed,
+                        oldIndex,
+                        newIndex,
+                      );
                     },
                     children: [
                       ...pending.asMap().entries.map(
@@ -322,7 +333,9 @@ class _TaskTileState extends State<_TaskTile> {
                   index: widget.index,
                   child: Icon(
                     Icons.drag_handle_rounded,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -365,7 +378,9 @@ class _TaskTileState extends State<_TaskTile> {
                   Icon(
                     Icons.repeat,
                     size: 20,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                   ),
                 IconButton(
                   icon: Icon(
