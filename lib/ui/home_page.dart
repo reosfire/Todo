@@ -172,28 +172,6 @@ class _HomePageState extends State<HomePage> {
     return SafeArea(
       child: Column(
         children: [
-          // Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-            color: Theme.of(context).colorScheme.primaryContainer,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Todo',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                ),
-                if (state.isSignedIn)
-                  Text(
-                    'Syncing with Dropbox',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-              ],
-            ),
-          ),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,

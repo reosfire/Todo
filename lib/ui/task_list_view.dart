@@ -374,13 +374,26 @@ class _TaskTileState extends State<_TaskTile> {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (widget.task.scheduledDate != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      DateFormat.MMMd().format(widget.task.scheduledDate!),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
                 if (isRecurring)
-                  Icon(
-                    Icons.repeat,
-                    size: 20,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(
+                      Icons.repeat,
+                      size: 20,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
                   ),
                 IconButton(
                   icon: Icon(
@@ -416,26 +429,6 @@ class _TaskTileState extends State<_TaskTile> {
   Widget? _buildSubtitle(BuildContext context) {
     final state = context.read<AppState>();
     final parts = <Widget>[];
-
-    if (widget.task.scheduledDate != null) {
-      parts.add(
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.calendar_today,
-              size: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              DateFormat.MMMd().format(widget.task.scheduledDate!),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      );
-    }
 
     final tagWidgets = widget.task.tagIds
         .map((id) => state.tagById(id))
