@@ -198,8 +198,8 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
       return Stack(
         children: [
           Positioned(
-            left: widget.initialPosition!.dx.clamp(0, MediaQuery.of(context).size.width - 450),
-            top: widget.initialPosition!.dy.clamp(0, MediaQuery.of(context).size.height - 600),
+            left: widget.initialPosition!.dx,
+            top: widget.initialPosition!.dy,
             child: Material(
               type: MaterialType.transparency,
               child: dialog,

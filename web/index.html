@@ -31,6 +31,13 @@
 
   <title>todo</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // Disable default context menu
+    window.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      return false;
+    });
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

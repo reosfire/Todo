@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/task.dart';
@@ -141,27 +140,61 @@ class _TaskTileState extends State<_TaskTile> {
     setState(() => _isEditing = false);
   }
 
-  void _showEditDialog(BuildContext context, Offset position) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    showMenu(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        overlay.size.width - position.dx,
-        overlay.size.height - position.dy,
-      ),
-      items: [],
-    ).then((_) {
-      // Close the empty menu immediately and show the dialog
-    });
+  Offset _calculateBestPosition(BuildContext context, Offset clickPosition) {
+    final screenSize = MediaQuery.of(context).size;
+    const dialogWidth = 400.0;
+    const dialogHeight = 600.0;
+
+    // Try 4 corner positions: top-left, bottom-left, top-right, bottom-right
+    final candidates = [
+      // Mouse at top-left corner
+      Offset(clickPosition.dx, clickPosition.dy),
+      // Mouse at bottom-left corner
+      Offset(clickPosition.dx, clickPosition.dy - dialogHeight),
+      // Mouse at top-right corner
+      Offset(clickPosition.dx - dialogWidth, clickPosition.dy),
+      // Mouse at bottom-right corner
+      Offset(clickPosition.dx - dialogWidth, clickPosition.dy - dialogHeight),
+    ];
+
+    // Find first position that fits on screen
+    for (final pos in candidates) {
+      if (pos.dx >= 0 &&
+          pos.dy >= 0 &&
+          pos.dx + dialogWidth <= screenSize.width &&
+          pos.dy + dialogHeight <= screenSize.height) {
+        return pos;
+      }
+    }
+
+    // If no corner fits perfectly, use the first candidate and adjust minimally
+    var bestPos = candidates[0];
     
+    // Clamp horizontally to fit on screen
+    if (bestPos.dx < 0) {
+      bestPos = Offset(0, bestPos.dy);
+    } else if (bestPos.dx + dialogWidth > screenSize.width) {
+      bestPos = Offset(screenSize.width - dialogWidth, bestPos.dy);
+    }
+    
+    // Clamp vertically to fit on screen
+    if (bestPos.dy < 0) {
+      bestPos = Offset(bestPos.dx, 0);
+    } else if (bestPos.dy + dialogHeight > screenSize.height) {
+      bestPos = Offset(bestPos.dx, screenSize.height - dialogHeight);
+    }
+    
+    return bestPos;
+  }
+
+  void _showEditDialog(BuildContext context, Offset position) {
+    final bestPosition = _calculateBestPosition(context, position);
     showDialog(
       context: context,
       builder: (_) => TaskEditorDialog(
         listId: widget.task.listId,
         existingTask: widget.task,
-        initialPosition: position,
+        initialPosition: bestPosition,
       ),
     );
   }
@@ -184,11 +217,18 @@ class _TaskTileState extends State<_TaskTile> {
       onDismissed: (_) => state.deleteTask(widget.task.id),
       child: Listener(
         onPointerDown: (event) {
-          if (event.buttons == kSecondaryMouseButton) {
+          if (event.buttons == 2) {
+            // Right mouse button - show dialog
             _showEditDialog(context, event.position);
           }
         },
-        child: ListTile(
+        child: GestureDetector(
+          onSecondaryTapDown: (details) {
+            // Prevents default context menu
+          },
+          onSecondaryTap: () {},
+          behavior: HitTestBehavior.opaque,
+          child: ListTile(
           leading: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -245,11 +285,11 @@ class _TaskTileState extends State<_TaskTile> {
               IconButton(
                 icon: const Icon(Icons.more_vert, size: 20),
                 onPressed: () {
-                  final box = context.findRenderObject() as RenderBox;
-                  final position = box.localToGlobal(Offset.zero);
+                  final RenderBox button = context.findRenderObject() as RenderBox;
+                  final Offset buttonPosition = button.localToGlobal(Offset.zero);
                   _showEditDialog(
                     context,
-                    Offset(position.dx + box.size.width - 50, position.dy),
+                    Offset(buttonPosition.dx, buttonPosition.dy + button.size.height),
                   );
                 },
                 padding: EdgeInsets.zero,
@@ -260,6 +300,7 @@ class _TaskTileState extends State<_TaskTile> {
           onTap: () {
             if (!_isEditing) _startEditing();
           },
+        ),
         ),
       ),
     );
