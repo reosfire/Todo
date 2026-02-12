@@ -6,15 +6,17 @@ import '../models/recurrence.dart';
 import '../state/app_state.dart';
 
 class TaskEditorDialog extends StatefulWidget {
+  static const double dialogWidth = 400.0;
+
   final String listId;
   final Task? existingTask;
-  final Offset? initialPosition;
+  final Offset clickPosition;
 
   const TaskEditorDialog({
     super.key,
     required this.listId,
     this.existingTask,
-    this.initialPosition,
+    required this.clickPosition,
   });
 
   @override
@@ -29,6 +31,8 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
   late Set<String> _tagIds;
   late String _listId;
   bool get _isEditing => widget.existingTask != null;
+  final GlobalKey _dialogKey = GlobalKey();
+  Offset? _calculatedPosition;
 
   @override
   void initState() {
@@ -40,6 +44,11 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
     _recurrence = t?.recurrence;
     _tagIds = Set.from(t?.tagIds ?? {});
     _listId = t?.listId ?? widget.listId;
+
+    // Measure and position after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureAndPosition();
+    });
   }
 
   @override
@@ -49,11 +58,66 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
     super.dispose();
   }
 
+  void _measureAndPosition() {
+    final renderBox = _dialogKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final dialogSize = renderBox.size;
+    final screenSize = MediaQuery.of(context).size;
+    final clickPosition = widget.clickPosition;
+
+    // Try 4 corner positions
+    final candidates = [
+      Offset(clickPosition.dx, clickPosition.dy),
+      Offset(clickPosition.dx, clickPosition.dy - dialogSize.height),
+      Offset(clickPosition.dx - dialogSize.width, clickPosition.dy),
+      Offset(clickPosition.dx - dialogSize.width, clickPosition.dy - dialogSize.height),
+    ];
+
+    // Find first position that fits
+    Offset? bestPos;
+    for (final pos in candidates) {
+      if (pos.dx >= 0 &&
+          pos.dy >= 0 &&
+          pos.dx + dialogSize.width <= screenSize.width &&
+          pos.dy + dialogSize.height <= screenSize.height) {
+        bestPos = pos;
+        break;
+      }
+    }
+
+    // If none fit, adjust the first candidate
+    if (bestPos == null) {
+      var x = candidates[0].dx;
+      var y = candidates[0].dy;
+
+      if (x < 0) x = 0;
+      if (x + dialogSize.width > screenSize.width) {
+        x = screenSize.width - dialogSize.width;
+      }
+
+      if (y < 0) y = 0;
+      if (y + dialogSize.height > screenSize.height) {
+        y = screenSize.height - dialogSize.height;
+      }
+
+      bestPos = Offset(x, y);
+    }
+
+    if (_calculatedPosition != bestPos) {
+      setState(() => _calculatedPosition = bestPos);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     
     final dialog = AlertDialog(
+      insetPadding: EdgeInsets.zero,
+      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       title: Text(_isEditing ? 'Edit Task' : 'New Task'),
       content: SizedBox(
         width: 400,
@@ -193,23 +257,23 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
       ],
     );
 
-    // If initialPosition is provided, wrap dialog in positioned widget
-    if (widget.initialPosition != null) {
-      return Stack(
-        children: [
-          Positioned(
-            left: widget.initialPosition!.dx,
-            top: widget.initialPosition!.dy,
-            child: Material(
-              type: MaterialType.transparency,
+    // Wrap dialog in positioned widget with measured position
+    final position = _calculatedPosition ?? widget.clickPosition;
+    return Stack(
+      children: [
+        Positioned(
+          left: position.dx,
+          top: position.dy,
+          child: Material(
+            type: MaterialType.transparency,
+            child: Container(
+              key: _dialogKey,
               child: dialog,
             ),
           ),
-        ],
-      );
-    }
-
-    return dialog;
+        ),
+      ],
+    );
   }
 
   void _save() {

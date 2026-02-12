@@ -90,6 +90,10 @@ class _SmartTaskTile extends StatelessWidget {
           builder: (_) => TaskEditorDialog(
             listId: task.listId,
             existingTask: task,
+            clickPosition: Offset(
+              MediaQuery.of(context).size.width / 2,
+              MediaQuery.of(context).size.height / 2,
+            ),
           ),
         );
       },

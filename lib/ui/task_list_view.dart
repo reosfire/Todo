@@ -77,7 +77,13 @@ class TaskListView extends StatelessWidget {
   void _addTask(BuildContext context, AppState state) {
     showDialog(
       context: context,
-      builder: (_) => TaskEditorDialog(listId: listId),
+      builder: (_) => TaskEditorDialog(
+        listId: listId,
+        clickPosition: Offset(
+          MediaQuery.of(context).size.width / 2,
+          MediaQuery.of(context).size.height / 2,
+        ),
+      ),
     );
   }
 }
@@ -140,61 +146,13 @@ class _TaskTileState extends State<_TaskTile> {
     setState(() => _isEditing = false);
   }
 
-  Offset _calculateBestPosition(BuildContext context, Offset clickPosition) {
-    final screenSize = MediaQuery.of(context).size;
-    const dialogWidth = 400.0;
-    const dialogHeight = 600.0;
-
-    // Try 4 corner positions: top-left, bottom-left, top-right, bottom-right
-    final candidates = [
-      // Mouse at top-left corner
-      Offset(clickPosition.dx, clickPosition.dy),
-      // Mouse at bottom-left corner
-      Offset(clickPosition.dx, clickPosition.dy - dialogHeight),
-      // Mouse at top-right corner
-      Offset(clickPosition.dx - dialogWidth, clickPosition.dy),
-      // Mouse at bottom-right corner
-      Offset(clickPosition.dx - dialogWidth, clickPosition.dy - dialogHeight),
-    ];
-
-    // Find first position that fits on screen
-    for (final pos in candidates) {
-      if (pos.dx >= 0 &&
-          pos.dy >= 0 &&
-          pos.dx + dialogWidth <= screenSize.width &&
-          pos.dy + dialogHeight <= screenSize.height) {
-        return pos;
-      }
-    }
-
-    // If no corner fits perfectly, use the first candidate and adjust minimally
-    var bestPos = candidates[0];
-    
-    // Clamp horizontally to fit on screen
-    if (bestPos.dx < 0) {
-      bestPos = Offset(0, bestPos.dy);
-    } else if (bestPos.dx + dialogWidth > screenSize.width) {
-      bestPos = Offset(screenSize.width - dialogWidth, bestPos.dy);
-    }
-    
-    // Clamp vertically to fit on screen
-    if (bestPos.dy < 0) {
-      bestPos = Offset(bestPos.dx, 0);
-    } else if (bestPos.dy + dialogHeight > screenSize.height) {
-      bestPos = Offset(bestPos.dx, screenSize.height - dialogHeight);
-    }
-    
-    return bestPos;
-  }
-
   void _showEditDialog(BuildContext context, Offset position) {
-    final bestPosition = _calculateBestPosition(context, position);
     showDialog(
       context: context,
       builder: (_) => TaskEditorDialog(
         listId: widget.task.listId,
         existingTask: widget.task,
-        initialPosition: bestPosition,
+        clickPosition: position,
       ),
     );
   }
