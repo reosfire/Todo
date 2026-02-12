@@ -8,11 +8,13 @@ import '../state/app_state.dart';
 class TaskEditorDialog extends StatefulWidget {
   final String listId;
   final Task? existingTask;
+  final Offset? initialPosition;
 
   const TaskEditorDialog({
     super.key,
     required this.listId,
     this.existingTask,
+    this.initialPosition,
   });
 
   @override
@@ -50,8 +52,8 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-
-    return AlertDialog(
+    
+    final dialog = AlertDialog(
       title: Text(_isEditing ? 'Edit Task' : 'New Task'),
       content: SizedBox(
         width: 400,
@@ -190,6 +192,24 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
         ),
       ],
     );
+
+    // If initialPosition is provided, wrap dialog in positioned widget
+    if (widget.initialPosition != null) {
+      return Stack(
+        children: [
+          Positioned(
+            left: widget.initialPosition!.dx.clamp(0, MediaQuery.of(context).size.width - 450),
+            top: widget.initialPosition!.dy.clamp(0, MediaQuery.of(context).size.height - 600),
+            child: Material(
+              type: MaterialType.transparency,
+              child: dialog,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return dialog;
   }
 
   void _save() {
