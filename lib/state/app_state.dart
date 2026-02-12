@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import 'package:app_links/app_links.dart';
 import '../models/app_data.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
@@ -15,8 +16,8 @@ const _uuid = Uuid();
 class AppState extends ChangeNotifier {
   final StorageService _storage = StorageService();
   final DropboxService dropboxService = DropboxService();
-  late final SyncService _syncService =
-      SyncService(dropboxService, _storage);
+  late final SyncService _syncService = SyncService(dropboxService, _storage);
+  final _appLinks = AppLinks();
 
   AppData _data = AppData();
   bool _loading = true;
@@ -43,7 +44,42 @@ class AppState extends ChangeNotifier {
     // Initialise Dropbox (loads saved tokens and handles web OAuth redirect).
     await dropboxService.init();
     await _syncService.init(_data);
+
+    // Initialize deep link handling for Android/iOS OAuth redirect
+    _initDeepLinks();
+
     notifyListeners();
+  }
+
+  void _initDeepLinks() async {
+    // Handle initial link (when app was closed and opened via deep link)
+    try {
+      final initialUri = await _appLinks.getInitialLink();
+      if (initialUri != null) {
+        _handleIncomingLink(initialUri);
+      }
+    } catch (e) {
+      // Handle error silently
+    }
+
+    // Listen for new links while app is running
+    _appLinks.uriLinkStream.listen((uri) {
+      _handleIncomingLink(uri);
+    });
+  }
+
+  void _handleIncomingLink(Uri uri) async {
+    if (uri.scheme == 'todoapp' && uri.host == 'auth') {
+      final code = uri.queryParameters['code'];
+      if (code != null) {
+        final success = await dropboxService.handleRedirectCode(code);
+        if (success) {
+          notifyListeners();
+          // Trigger initial sync after successful OAuth
+          await sync();
+        }
+      }
+    }
   }
 
   void _ensureDefaults() {
@@ -167,8 +203,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> deleteList(String id) async {
-    final taskIds =
-        _data.tasks.where((t) => t.listId == id).map((t) => t.id).toList();
+    final taskIds = _data.tasks
+        .where((t) => t.listId == id)
+        .map((t) => t.id)
+        .toList();
     _data.lists.removeWhere((l) => l.id == id);
     _data.tasks.removeWhere((t) => t.listId == id);
     await _save();
@@ -214,8 +252,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> deleteFolder(String id) async {
-    final affectedLists =
-        _data.lists.where((l) => l.folderId == id).toList();
+    final affectedLists = _data.lists.where((l) => l.folderId == id).toList();
     for (final list in affectedLists) {
       list.folderId = null;
     }
@@ -230,7 +267,9 @@ class AppState extends ChangeNotifier {
   Future<void> reorderFolders(List<Folder> reorderedFolders) async {
     for (var i = 0; i < reorderedFolders.length; i++) {
       reorderedFolders[i].order = i;
-      final idx = _data.folders.indexWhere((f) => f.id == reorderedFolders[i].id);
+      final idx = _data.folders.indexWhere(
+        (f) => f.id == reorderedFolders[i].id,
+      );
       if (idx >= 0) _data.folders[idx] = reorderedFolders[i];
     }
     await _save();
@@ -263,8 +302,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> deleteTag(String id) async {
-    final affectedTasks =
-        _data.tasks.where((t) => t.tagIds.contains(id)).toList();
+    final affectedTasks = _data.tasks
+        .where((t) => t.tagIds.contains(id))
+        .toList();
     for (final task in affectedTasks) {
       task.tagIds.remove(id);
     }
@@ -289,22 +329,14 @@ class AppState extends ChangeNotifier {
   Future<void> addSmartList(SmartList smartList) async {
     _data.smartLists.add(smartList);
     await _save();
-    _syncService.pushEntity(
-      'smart_lists',
-      smartList.id,
-      smartList.toJson(),
-    );
+    _syncService.pushEntity('smart_lists', smartList.id, smartList.toJson());
   }
 
   Future<void> updateSmartList(SmartList smartList) async {
     final i = _data.smartLists.indexWhere((s) => s.id == smartList.id);
     if (i >= 0) _data.smartLists[i] = smartList;
     await _save();
-    _syncService.pushEntity(
-      'smart_lists',
-      smartList.id,
-      smartList.toJson(),
-    );
+    _syncService.pushEntity('smart_lists', smartList.id, smartList.toJson());
   }
 
   Future<void> deleteSmartList(String id) async {

@@ -19,6 +19,7 @@ dependencies:
   crypto: ^3.0.6
   shared_preferences: ^2.3.4
   web: ^1.1.1
+  app_links: ^6.3.4
 
 dev_dependencies:
   flutter_test:
