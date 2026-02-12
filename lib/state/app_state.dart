@@ -8,12 +8,15 @@ import '../models/tag.dart';
 import '../models/smart_list.dart';
 import '../services/storage_service.dart';
 import '../services/dropbox_service.dart';
+import '../services/sync_service.dart';
 
 const _uuid = Uuid();
 
 class AppState extends ChangeNotifier {
   final StorageService _storage = StorageService();
   final DropboxService dropboxService = DropboxService();
+  late final SyncService _syncService =
+      SyncService(dropboxService, _storage);
 
   AppData _data = AppData();
   bool _loading = true;
@@ -39,6 +42,7 @@ class AppState extends ChangeNotifier {
 
     // Initialise Dropbox (loads saved tokens and handles web OAuth redirect).
     await dropboxService.init();
+    await _syncService.init(_data);
     notifyListeners();
   }
 
@@ -95,12 +99,14 @@ class AppState extends ChangeNotifier {
   Future<void> addTask(Task task) async {
     _data.tasks.add(task);
     await _save();
+    _syncService.pushEntity('tasks', task.id, task.toJson());
   }
 
   Future<void> updateTask(Task task) async {
     final i = _data.tasks.indexWhere((t) => t.id == task.id);
     if (i >= 0) _data.tasks[i] = task;
     await _save();
+    _syncService.pushEntity('tasks', task.id, task.toJson());
   }
 
   Future<void> updateTasks(List<Task> tasks) async {
@@ -109,11 +115,15 @@ class AppState extends ChangeNotifier {
       if (i >= 0) _data.tasks[i] = task;
     }
     await _save();
+    for (final task in tasks) {
+      _syncService.pushEntity('tasks', task.id, task.toJson());
+    }
   }
 
   Future<void> deleteTask(String id) async {
     _data.tasks.removeWhere((t) => t.id == id);
     await _save();
+    _syncService.pushDeletion('tasks', id);
   }
 
   Future<void> toggleTask(Task task, {DateTime? onDate}) async {
@@ -130,6 +140,7 @@ class AppState extends ChangeNotifier {
       task.isCompleted = !task.isCompleted;
     }
     await _save();
+    _syncService.pushEntity('tasks', task.id, task.toJson());
   }
 
   // ───── Lists ─────
@@ -145,18 +156,26 @@ class AppState extends ChangeNotifier {
   Future<void> addList(TaskList list) async {
     _data.lists.add(list);
     await _save();
+    _syncService.pushEntity('lists', list.id, list.toJson());
   }
 
   Future<void> updateList(TaskList list) async {
     final i = _data.lists.indexWhere((l) => l.id == list.id);
     if (i >= 0) _data.lists[i] = list;
     await _save();
+    _syncService.pushEntity('lists', list.id, list.toJson());
   }
 
   Future<void> deleteList(String id) async {
+    final taskIds =
+        _data.tasks.where((t) => t.listId == id).map((t) => t.id).toList();
     _data.lists.removeWhere((l) => l.id == id);
     _data.tasks.removeWhere((t) => t.listId == id);
     await _save();
+    _syncService.pushDeletion('lists', id);
+    for (final tid in taskIds) {
+      _syncService.pushDeletion('tasks', tid);
+    }
   }
 
   // ───── Folders ─────
@@ -172,20 +191,28 @@ class AppState extends ChangeNotifier {
   Future<void> addFolder(Folder folder) async {
     _data.folders.add(folder);
     await _save();
+    _syncService.pushEntity('folders', folder.id, folder.toJson());
   }
 
   Future<void> updateFolder(Folder folder) async {
     final i = _data.folders.indexWhere((f) => f.id == folder.id);
     if (i >= 0) _data.folders[i] = folder;
     await _save();
+    _syncService.pushEntity('folders', folder.id, folder.toJson());
   }
 
   Future<void> deleteFolder(String id) async {
-    for (final list in _data.lists) {
-      if (list.folderId == id) list.folderId = null;
+    final affectedLists =
+        _data.lists.where((l) => l.folderId == id).toList();
+    for (final list in affectedLists) {
+      list.folderId = null;
     }
     _data.folders.removeWhere((f) => f.id == id);
     await _save();
+    _syncService.pushDeletion('folders', id);
+    for (final list in affectedLists) {
+      _syncService.pushEntity('lists', list.id, list.toJson());
+    }
   }
 
   // ───── Tags ─────
@@ -201,20 +228,28 @@ class AppState extends ChangeNotifier {
   Future<void> addTag(Tag tag) async {
     _data.tags.add(tag);
     await _save();
+    _syncService.pushEntity('tags', tag.id, tag.toJson());
   }
 
   Future<void> updateTag(Tag tag) async {
     final i = _data.tags.indexWhere((t) => t.id == tag.id);
     if (i >= 0) _data.tags[i] = tag;
     await _save();
+    _syncService.pushEntity('tags', tag.id, tag.toJson());
   }
 
   Future<void> deleteTag(String id) async {
-    for (final task in _data.tasks) {
+    final affectedTasks =
+        _data.tasks.where((t) => t.tagIds.contains(id)).toList();
+    for (final task in affectedTasks) {
       task.tagIds.remove(id);
     }
     _data.tags.removeWhere((t) => t.id == id);
     await _save();
+    _syncService.pushDeletion('tags', id);
+    for (final task in affectedTasks) {
+      _syncService.pushEntity('tasks', task.id, task.toJson());
+    }
   }
 
   // ───── Smart Lists ─────
@@ -230,17 +265,28 @@ class AppState extends ChangeNotifier {
   Future<void> addSmartList(SmartList smartList) async {
     _data.smartLists.add(smartList);
     await _save();
+    _syncService.pushEntity(
+      'smart_lists',
+      smartList.id,
+      smartList.toJson(),
+    );
   }
 
   Future<void> updateSmartList(SmartList smartList) async {
     final i = _data.smartLists.indexWhere((s) => s.id == smartList.id);
     if (i >= 0) _data.smartLists[i] = smartList;
     await _save();
+    _syncService.pushEntity(
+      'smart_lists',
+      smartList.id,
+      smartList.toJson(),
+    );
   }
 
   Future<void> deleteSmartList(String id) async {
     _data.smartLists.removeWhere((s) => s.id == id);
     await _save();
+    _syncService.pushDeletion('smart_lists', id);
   }
 
   // ───── Sync ─────
@@ -260,16 +306,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final remote = await dropboxService.download();
-      if (remote != null && remote.lastModified.isAfter(_data.lastModified)) {
-        // Remote is newer – use it.
-        _data = remote;
-        _ensureDefaults();
-        await _storage.save(_data);
-      } else {
-        // Local is newer (or no remote) – upload.
-        await dropboxService.upload(_data);
-      }
+      _data = await _syncService.fullSync(_data);
+      _ensureDefaults();
+      await _storage.save(_data);
     } catch (e) {
       debugPrint('Sync error: $e');
     }
@@ -283,7 +322,7 @@ class AppState extends ChangeNotifier {
     _syncing = true;
     notifyListeners();
     try {
-      await dropboxService.upload(_data);
+      await _syncService.forceUploadAll(_data);
     } catch (e) {
       debugPrint('Upload error: $e');
     }
@@ -296,12 +335,9 @@ class AppState extends ChangeNotifier {
     _syncing = true;
     notifyListeners();
     try {
-      final remote = await dropboxService.download();
-      if (remote != null) {
-        _data = remote;
-        _ensureDefaults();
-        await _storage.save(_data);
-      }
+      _data = await _syncService.forceDownloadAll();
+      _ensureDefaults();
+      await _storage.save(_data);
     } catch (e) {
       debugPrint('Download error: $e');
     }

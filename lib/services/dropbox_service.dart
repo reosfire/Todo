@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/app_data.dart';
 import 'web_auth.dart' as web_auth;
 
 /// Dropbox OAuth2 + Files API service using PKCE (no client secret needed).
@@ -30,9 +29,6 @@ class DropboxService {
   static const _keyRefreshToken = 'dbx_refresh_token';
   static const _keyExpiresAt = 'dbx_expires_at';
   static const _keyCodeVerifier = 'dbx_code_verifier';
-
-  // ── Remote file path inside the app folder ──
-  static const _remotePath = '/todo_data.json';
 
   String? _accessToken;
   String? _refreshToken;
@@ -96,11 +92,11 @@ class DropboxService {
     await prefs.remove(_keyCodeVerifier);
   }
 
-  // ───── Upload / Download ─────
+  // ───── File operations ─────
 
-  Future<void> upload(AppData data) async {
+  /// Upload [content] to [remotePath] (e.g. `/tasks/abc.json`).
+  Future<void> uploadFile(String remotePath, String content) async {
     await _ensureValidToken();
-    final json = jsonEncode(data.toJson());
 
     final response = await http.post(
       Uri.parse('https://content.dropboxapi.com/2/files/upload'),
@@ -108,13 +104,13 @@ class DropboxService {
         'Authorization': 'Bearer $_accessToken',
         'Content-Type': 'application/octet-stream',
         'Dropbox-API-Arg': jsonEncode({
-          'path': _remotePath,
+          'path': remotePath,
           'mode': 'overwrite',
           'autorename': false,
           'mute': true,
         }),
       },
-      body: utf8.encode(json),
+      body: utf8.encode(content),
     );
 
     if (response.statusCode != 200) {
@@ -125,21 +121,20 @@ class DropboxService {
     }
   }
 
-  Future<AppData?> download() async {
+  /// Download the file at [remotePath]. Returns `null` when the file does
+  /// not exist (Dropbox 409 / path not found).
+  Future<String?> downloadFile(String remotePath) async {
     await _ensureValidToken();
 
     final response = await http.post(
       Uri.parse('https://content.dropboxapi.com/2/files/download'),
       headers: {
         'Authorization': 'Bearer $_accessToken',
-        'Dropbox-API-Arg': jsonEncode({'path': _remotePath}),
+        'Dropbox-API-Arg': jsonEncode({'path': remotePath}),
       },
     );
 
-    if (response.statusCode == 409) {
-      // File not found — first sync.
-      return null;
-    }
+    if (response.statusCode == 409) return null; // not found
     if (response.statusCode != 200) {
       throw Exception(
         'Dropbox download failed (${response.statusCode}): '
@@ -147,8 +142,31 @@ class DropboxService {
       );
     }
 
-    final map = jsonDecode(response.body) as Map<String, dynamic>;
-    return AppData.fromJson(map);
+    return response.body;
+  }
+
+  /// Delete the file at [remotePath]. Silently succeeds if the file does
+  /// not exist.
+  Future<void> deleteFile(String remotePath) async {
+    await _ensureValidToken();
+
+    final response = await http.post(
+      Uri.parse('https://api.dropboxapi.com/2/files/delete_v2'),
+      headers: {
+        'Authorization': 'Bearer $_accessToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'path': remotePath}),
+    );
+
+    // Ignore "not found" – the file is already gone.
+    if (response.statusCode == 409) return;
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Dropbox delete failed (${response.statusCode}): '
+        '${response.body}',
+      );
+    }
   }
 
   // ───── PKCE helpers ─────
@@ -244,10 +262,12 @@ class DropboxService {
 
   Future<void> _saveTokens() async {
     final prefs = await SharedPreferences.getInstance();
-    if (_accessToken != null)
+    if (_accessToken != null) {
       await prefs.setString(_keyAccessToken, _accessToken!);
-    if (_refreshToken != null)
+    }
+    if (_refreshToken != null) {
       await prefs.setString(_keyRefreshToken, _refreshToken!);
+    }
     if (_expiresAt != null) {
       await prefs.setString(_keyExpiresAt, _expiresAt!.toIso8601String());
     }
