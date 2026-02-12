@@ -178,6 +178,18 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> reorderLists(List<TaskList> reorderedLists) async {
+    for (var i = 0; i < reorderedLists.length; i++) {
+      reorderedLists[i].order = i;
+      final idx = _data.lists.indexWhere((l) => l.id == reorderedLists[i].id);
+      if (idx >= 0) _data.lists[idx] = reorderedLists[i];
+    }
+    await _save();
+    for (final list in reorderedLists) {
+      _syncService.pushEntity('lists', list.id, list.toJson());
+    }
+  }
+
   // ───── Folders ─────
 
   Folder? folderById(String id) {
@@ -212,6 +224,18 @@ class AppState extends ChangeNotifier {
     _syncService.pushDeletion('folders', id);
     for (final list in affectedLists) {
       _syncService.pushEntity('lists', list.id, list.toJson());
+    }
+  }
+
+  Future<void> reorderFolders(List<Folder> reorderedFolders) async {
+    for (var i = 0; i < reorderedFolders.length; i++) {
+      reorderedFolders[i].order = i;
+      final idx = _data.folders.indexWhere((f) => f.id == reorderedFolders[i].id);
+      if (idx >= 0) _data.folders[idx] = reorderedFolders[i];
+    }
+    await _save();
+    for (final folder in reorderedFolders) {
+      _syncService.pushEntity('folders', folder.id, folder.toJson());
     }
   }
 

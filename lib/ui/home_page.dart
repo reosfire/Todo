@@ -261,67 +261,178 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Widget> _buildFolderAndListItems(AppState state) {
-    final widgets = <Widget>[];
+    // Lists not in any folder, sorted by order
+    final orphanLists = state.lists.where((l) => l.folderId == null).toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
 
-    // Lists not in any folder
-    final orphanLists = state.lists.where((l) => l.folderId == null).toList();
-    for (final list in orphanLists) {
-      widgets.add(_buildListTile(state, list));
-    }
+    // Folders sorted by order
+    final sortedFolders = state.folders.toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
 
-    // Folders with their lists
-    for (final folder in state.folders) {
+    // Build orphan list widgets with keys for reordering
+    final orphanWidgets = orphanLists
+        .map(
+          (list) =>
+              _buildListTile(state, list, key: ValueKey('list_${list.id}')),
+        )
+        .toList();
+
+    // Build folder widgets with keys
+    final folderWidgets = sortedFolders.map((folder) {
+      final folderLists =
+          state.lists.where((l) => l.folderId == folder.id).toList()
+            ..sort((a, b) => a.order.compareTo(b.order));
+
       final folderListCount = state.tasks
-          .where((t) =>
-              state.lists.any((l) => l.folderId == folder.id && l.id == t.listId) &&
-              !t.isCompleted)
+          .where(
+            (t) => folderLists.any((l) => l.id == t.listId) && !t.isCompleted,
+          )
           .length;
-      widgets.add(
-        _HoverTrailingTile(
-          child: (isHovered) => ExpansionTile(
-            leading: const Icon(Icons.folder_outlined, size: 20),
-            title: Text(folder.name),
-            dense: true,
-            trailing: SizedBox(
-              width: 32,
-              child: isHovered
-                  ? IconButton(
-                      icon: const Icon(Icons.more_horiz, size: 18),
-                      onPressed: () => _showFolderMenu(context, state, folder),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      visualDensity: VisualDensity.compact,
-                    )
-                  : folderListCount > 0
-                      ? Text(
-                          '$folderListCount',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          textAlign: TextAlign.center,
-                        )
-                      : const SizedBox.shrink(),
-            ),
-            children: state.lists
-                .where((l) => l.folderId == folder.id)
-                .map(
-                  (l) => Padding(
-                    padding: const EdgeInsets.only(left: 16),
-                    child: _buildListTile(state, l),
-                  ),
-                )
-                .toList(),
+
+      return _HoverTrailingTile(
+        key: ValueKey('folder_${folder.id}'),
+        child: (isHovered) => ExpansionTile(
+          leading: const Icon(Icons.folder_outlined, size: 20),
+          title: Text(folder.name),
+          dense: true,
+          trailing: SizedBox(
+            width: 32,
+            child: isHovered
+                ? IconButton(
+                    icon: const Icon(Icons.more_horiz, size: 18),
+                    onPressed: () => _showFolderMenu(context, state, folder),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    visualDensity: VisualDensity.compact,
+                  )
+                : folderListCount > 0
+                ? Text(
+                    '$folderListCount',
+                    style: Theme.of(context).textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  )
+                : const SizedBox.shrink(),
           ),
+          children: [
+            ReorderableListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              onReorder: (oldIndex, newIndex) {
+                _reorderListsInFolder(
+                  state,
+                  folder.id,
+                  folderLists,
+                  oldIndex,
+                  newIndex,
+                );
+              },
+              children: folderLists.asMap().entries.map((e) {
+                return ReorderableDragStartListener(
+                  key: ValueKey('list_${e.value.id}_in_folder'),
+                  index: e.key,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16),
+                    child: _buildListTile(state, e.value),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ),
       );
-    }
+    }).toList();
 
-    return widgets;
+    // Combine into ReorderableListView
+    return [
+      ReorderableListView(
+        key: const ValueKey('reorderable_folders_lists'),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        buildDefaultDragHandles: false,
+        onReorder: (oldIndex, newIndex) {
+          _reorderFoldersAndLists(
+            state,
+            orphanLists,
+            sortedFolders,
+            oldIndex,
+            newIndex,
+          );
+        },
+        children: [
+          ...orphanWidgets.asMap().entries.map(
+            (e) => ReorderableDragStartListener(
+              key: e.value.key!,
+              index: e.key,
+              child: e.value,
+            ),
+          ),
+          ...folderWidgets.asMap().entries.map(
+            (e) => ReorderableDragStartListener(
+              key: e.value.key!,
+              index: orphanWidgets.length + e.key,
+              child: e.value,
+            ),
+          ),
+        ],
+      ),
+    ];
   }
 
-  Widget _buildListTile(AppState state, TaskList list) {
+  void _reorderFoldersAndLists(
+    AppState state,
+    List<TaskList> orphanLists,
+    List<Folder> folders,
+    int oldIndex,
+    int newIndex,
+  ) {
+    // Create combined list of items
+    final items = <dynamic>[...orphanLists, ...folders];
+
+    // Perform reorder
+    if (oldIndex < newIndex) newIndex--;
+    final item = items.removeAt(oldIndex);
+    items.insert(newIndex, item);
+
+    // Split back into lists and folders
+    final reorderedOrphanLists = <TaskList>[];
+    final reorderedFolders = <Folder>[];
+
+    for (final item in items) {
+      if (item is TaskList) {
+        reorderedOrphanLists.add(item);
+      } else if (item is Folder) {
+        reorderedFolders.add(item);
+      }
+    }
+
+    // Update state
+    state.reorderLists(reorderedOrphanLists);
+    state.reorderFolders(reorderedFolders);
+  }
+
+  void _reorderListsInFolder(
+    AppState state,
+    String folderId,
+    List<TaskList> folderLists,
+    int oldIndex,
+    int newIndex,
+  ) {
+    // Perform reorder
+    if (oldIndex < newIndex) newIndex--;
+    final item = folderLists.removeAt(oldIndex);
+    folderLists.insert(newIndex, item);
+
+    // Update state with reordered lists in this folder
+    state.reorderLists(folderLists);
+  }
+
+  Widget _buildListTile(AppState state, TaskList list, {Key? key}) {
     final count = state.tasks
         .where((t) => t.listId == list.id && !t.isCompleted)
         .length;
     return _HoverTrailingTile(
+      key: key,
       child: (isHovered) => ListTile(
         leading: Icon(Icons.list, color: list.color, size: 20),
         title: Text(list.name),
@@ -336,12 +447,12 @@ class _HomePageState extends State<HomePage> {
                   visualDensity: VisualDensity.compact,
                 )
               : count > 0
-                  ? Text(
-                      '$count',
-                      style: Theme.of(context).textTheme.bodySmall,
-                      textAlign: TextAlign.center,
-                    )
-                  : const SizedBox.shrink(),
+              ? Text(
+                  '$count',
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                )
+              : const SizedBox.shrink(),
         ),
         selected: _selectedListId == list.id,
         dense: true,
@@ -469,7 +580,7 @@ class _SectionHeader extends StatelessWidget {
 
 class _HoverTrailingTile extends StatefulWidget {
   final Widget Function(bool isHovered) child;
-  const _HoverTrailingTile({required this.child});
+  const _HoverTrailingTile({super.key, required this.child});
 
   @override
   State<_HoverTrailingTile> createState() => _HoverTrailingTileState();
