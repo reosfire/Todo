@@ -12,31 +12,6 @@ A cross-platform todo app built with Flutter and Material 3.
 - **Dropbox Sync** — real-time two-way sync via Dropbox API with PKCE OAuth, longpoll-based change detection, and per-entity file storage
 - **Dark Mode** — follows system theme automatically
 
-## Tech Stack
-
-| Layer | Details |
-|---|---|
-| Framework | Flutter (Dart) |
-| State management | Provider + ChangeNotifier |
-| Design system | Material 3 |
-| Cloud sync | Dropbox API v2 (OAuth2 PKCE, longpoll) |
-| Persistence | Local JSON files + SharedPreferences |
-
-## Project Structure
-
-```
-lib/
-├── main.dart              # App entry point
-├── state/
-│   └── app_state.dart     # Central state management
-├── models/                # Data models (Task, TaskList, Folder, Tag, SmartList, etc.)
-├── services/
-│   ├── storage_service.dart   # Local persistence
-│   ├── dropbox_service.dart   # Dropbox OAuth & file API
-│   └── sync_service.dart      # Per-entity sync orchestration
-└── ui/                    # Pages, dialogs, and list views
-```
-
 ## Getting Started
 
 ### Prerequisites
