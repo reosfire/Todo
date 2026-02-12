@@ -310,7 +310,7 @@ class _TaskTileState extends State<_TaskTile> {
                   ),
                 IconButton(
                   icon: Icon(
-                    Icons.more_vert,
+                    Icons.more_horiz,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   onPressed: () {

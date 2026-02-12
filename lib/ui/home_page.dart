@@ -286,7 +286,7 @@ class _HomePageState extends State<HomePage> {
               width: 32,
               child: isHovered
                   ? IconButton(
-                      icon: const Icon(Icons.more_vert, size: 18),
+                      icon: const Icon(Icons.more_horiz, size: 18),
                       onPressed: () => _showFolderMenu(context, state, folder),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -321,20 +321,15 @@ class _HomePageState extends State<HomePage> {
     final count = state.tasks
         .where((t) => t.listId == list.id && !t.isCompleted)
         .length;
-    final isSelected = _selectedListId == list.id;
     return _HoverTrailingTile(
       child: (isHovered) => ListTile(
-        leading: Icon(
-          Icons.list,
-          color: isSelected ? list.color : null,
-          size: 20,
-        ),
+        leading: Icon(Icons.list, color: list.color, size: 20),
         title: Text(list.name),
         trailing: SizedBox(
           width: 32,
           child: isHovered
               ? IconButton(
-                  icon: const Icon(Icons.more_vert, size: 18),
+                  icon: const Icon(Icons.more_horiz, size: 18),
                   onPressed: () => _showListMenu(context, state, list),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),

@@ -3,17 +3,17 @@ import 'dart:ui';
 class TaskList {
   String id;
   String name;
-  int colorValue;
+  int? colorValue;
   String? folderId;
 
   TaskList({
     required this.id,
     required this.name,
-    this.colorValue = 0xFF42A5F5,
+    this.colorValue,
     this.folderId,
   });
 
-  Color get color => Color(colorValue);
+  Color? get color => colorValue != null ? Color(colorValue!) : null;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -25,7 +25,7 @@ class TaskList {
   factory TaskList.fromJson(Map<String, dynamic> json) => TaskList(
     id: json['id'] as String,
     name: json['name'] as String,
-    colorValue: json['colorValue'] as int? ?? 0xFF42A5F5,
+    colorValue: json['colorValue'] as int?,
     folderId: json['folderId'] as String?,
   );
 }

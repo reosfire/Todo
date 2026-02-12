@@ -14,9 +14,10 @@ class ListEditorDialog extends StatefulWidget {
 class _ListEditorDialogState extends State<ListEditorDialog> {
   late final TextEditingController _nameCtrl;
   String? _folderId;
-  int _colorValue = 0xFF42A5F5;
+  int? _colorValue;
 
   static const _colors = [
+    null, // Default (theme color)
     0xFF42A5F5, // blue
     0xFF66BB6A, // green
     0xFFEF5350, // red
@@ -34,7 +35,7 @@ class _ListEditorDialogState extends State<ListEditorDialog> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.taskList?.name ?? '');
     _folderId = widget.taskList?.folderId;
-    _colorValue = widget.taskList?.colorValue ?? 0xFF42A5F5;
+    _colorValue = widget.taskList?.colorValue;
   }
 
   @override
@@ -90,12 +91,27 @@ class _ListEditorDialogState extends State<ListEditorDialog> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: Color(c),
+                      color: c != null ? Color(c) : null,
                       shape: BoxShape.circle,
-                      border: _colorValue == c
-                          ? Border.all(width: 3, color: Colors.black54)
-                          : null,
+                      border: Border.all(
+                        width: _colorValue == c ? 3 : 1,
+                        color: _colorValue == c
+                            ? Colors.black54
+                            : Colors.grey.shade300,
+                      ),
                     ),
+                    child: c == null
+                        ? Center(
+                            child: Text(
+                              'A',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          )
+                        : null,
                   ),
                 );
               }).toList(),
