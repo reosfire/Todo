@@ -1,1 +1,1 @@
-export 'web_auth_stub.dart' if (dart.library.js_interop) 'web_auth_web.dart';
+export 'web_auth_stub.dart' if (dart.library.html) 'web_auth_web.dart';

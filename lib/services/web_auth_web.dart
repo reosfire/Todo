@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 
@@ -22,25 +23,13 @@ void clearUrlAuthCode() {
 }
 
 /// Returns the base URL of the app (origin + base path).
-/// For example: https://reosfire.github.io/Todo/ or http://localhost:8080/
+/// For example: https://reosfire.github.io/Todo or http://localhost:8080
 String getAppRedirectUri() {
-  // Get the base element's href which includes the base path
-  final baseElement = web.document.querySelector('base');
-  if (baseElement != null) {
-    final baseHref = baseElement.getAttribute('href');
-    if (baseHref != null && baseHref.isNotEmpty && baseHref != r'$FLUTTER_BASE_HREF') {
-      // base href is absolute or relative - combine with origin
-      final uri = Uri.parse(web.window.location.href);
-      final base = Uri.parse(baseHref);
-      if (base.hasScheme) {
-        // Absolute base href
-        return base.toString();
-      } else {
-        // Relative base href - combine with origin
-        return '${uri.origin}$baseHref';
-      }
-    }
+  final origin = web.window.location.origin;
+  log(origin);
+  if (origin.contains("github.io")) {
+    return '$origin/Todo';
+  } else {
+    return "http://localhost:8080";
   }
-  // Fallback to origin if no base href found
-  return web.window.location.origin;
 }
