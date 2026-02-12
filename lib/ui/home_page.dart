@@ -271,24 +271,45 @@ class _HomePageState extends State<HomePage> {
 
     // Folders with their lists
     for (final folder in state.folders) {
+      final folderListCount = state.tasks
+          .where((t) =>
+              state.lists.any((l) => l.folderId == folder.id && l.id == t.listId) &&
+              !t.isCompleted)
+          .length;
       widgets.add(
-        ExpansionTile(
-          leading: const Icon(Icons.folder_outlined, size: 20),
-          title: Text(folder.name),
-          dense: true,
-          trailing: IconButton(
-            icon: const Icon(Icons.more_vert, size: 18),
-            onPressed: () => _showFolderMenu(context, state, folder),
+        _HoverTrailingTile(
+          child: (isHovered) => ExpansionTile(
+            leading: const Icon(Icons.folder_outlined, size: 20),
+            title: Text(folder.name),
+            dense: true,
+            trailing: SizedBox(
+              width: 32,
+              child: isHovered
+                  ? IconButton(
+                      icon: const Icon(Icons.more_vert, size: 18),
+                      onPressed: () => _showFolderMenu(context, state, folder),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      visualDensity: VisualDensity.compact,
+                    )
+                  : folderListCount > 0
+                      ? Text(
+                          '$folderListCount',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.center,
+                        )
+                      : const SizedBox.shrink(),
+            ),
+            children: state.lists
+                .where((l) => l.folderId == folder.id)
+                .map(
+                  (l) => Padding(
+                    padding: const EdgeInsets.only(left: 16),
+                    child: _buildListTile(state, l),
+                  ),
+                )
+                .toList(),
           ),
-          children: state.lists
-              .where((l) => l.folderId == folder.id)
-              .map(
-                (l) => Padding(
-                  padding: const EdgeInsets.only(left: 16),
-                  child: _buildListTile(state, l),
-                ),
-              )
-              .toList(),
         ),
       );
     }
@@ -300,16 +321,38 @@ class _HomePageState extends State<HomePage> {
     final count = state.tasks
         .where((t) => t.listId == list.id && !t.isCompleted)
         .length;
-    return ListTile(
-      leading: Icon(list.icon, color: list.color, size: 20),
-      title: Text(list.name),
-      trailing: count > 0
-          ? Text('$count', style: Theme.of(context).textTheme.bodySmall)
-          : null,
-      selected: _selectedListId == list.id,
-      dense: true,
-      onTap: () => _selectList(list.id),
-      onLongPress: () => _showListMenu(context, state, list),
+    final isSelected = _selectedListId == list.id;
+    return _HoverTrailingTile(
+      child: (isHovered) => ListTile(
+        leading: Icon(
+          Icons.list,
+          color: isSelected ? list.color : null,
+          size: 20,
+        ),
+        title: Text(list.name),
+        trailing: SizedBox(
+          width: 32,
+          child: isHovered
+              ? IconButton(
+                  icon: const Icon(Icons.more_vert, size: 18),
+                  onPressed: () => _showListMenu(context, state, list),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                )
+              : count > 0
+                  ? Text(
+                      '$count',
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    )
+                  : const SizedBox.shrink(),
+        ),
+        selected: _selectedListId == list.id,
+        dense: true,
+        onTap: () => _selectList(list.id),
+        onLongPress: () => _showListMenu(context, state, list),
+      ),
     );
   }
 
@@ -425,6 +468,27 @@ class _SectionHeader extends StatelessWidget {
           letterSpacing: 1.2,
         ),
       ),
+    );
+  }
+}
+
+class _HoverTrailingTile extends StatefulWidget {
+  final Widget Function(bool isHovered) child;
+  const _HoverTrailingTile({required this.child});
+
+  @override
+  State<_HoverTrailingTile> createState() => _HoverTrailingTileState();
+}
+
+class _HoverTrailingTileState extends State<_HoverTrailingTile> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: widget.child(_isHovered),
     );
   }
 }
