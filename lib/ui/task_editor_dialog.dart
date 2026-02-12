@@ -357,7 +357,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
             ListTile(
               title: const Text('Every day'),
               onTap: () {
-                setState(() => _recurrence = RecurrenceRule.daily());
+                setState(() => _recurrence = const DailyRecurrence());
                 Navigator.pop(ctx);
               },
             ),
@@ -376,21 +376,17 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
               },
             ),
             ListTile(
-              title: const Text('Monthly on this day'),
+              title: const Text('Monthly on specific day…'),
               onTap: () {
-                final day = _scheduledDate?.day ?? DateTime.now().day;
-                setState(() => _recurrence = RecurrenceRule.monthly(day));
                 Navigator.pop(ctx);
+                _showMonthDayPicker();
               },
             ),
             ListTile(
-              title: const Text('Yearly on this date'),
+              title: const Text('Yearly on specific date…'),
               onTap: () {
-                final d = _scheduledDate ?? DateTime.now();
-                setState(
-                  () => _recurrence = RecurrenceRule.yearly(d.month, d.day),
-                );
                 Navigator.pop(ctx);
+                _showYearDayPicker();
               },
             ),
           ],
@@ -433,7 +429,133 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
             ),
             FilledButton(
               onPressed: () {
-                setState(() => _recurrence = RecurrenceRule.everyNDays(n));
+                setState(() => _recurrence = EveryNDaysRecurrence(n));
+                Navigator.pop(ctx);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMonthDayPicker() {
+    int day = _scheduledDate?.day ?? DateTime.now().day;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Monthly on specific day'),
+          content: Row(
+            children: [
+              const Text('Day '),
+              SizedBox(
+                width: 60,
+                child: TextField(
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (v) {
+                    final parsed = int.tryParse(v);
+                    if (parsed != null && parsed >= 1 && parsed <= 31) {
+                      day = parsed;
+                    }
+                  },
+                  controller: TextEditingController(text: '$day'),
+                ),
+              ),
+              const Text(' of the month'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() => _recurrence = MonthlyRecurrence(day));
+                Navigator.pop(ctx);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showYearDayPicker() {
+    final initial = _scheduledDate ?? DateTime.now();
+    int month = initial.month;
+    int day = initial.day;
+    
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Yearly on specific date'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                initialValue: month,
+                decoration: const InputDecoration(
+                  labelText: 'Month',
+                  border: OutlineInputBorder(),
+                ),
+                items: List.generate(
+                  12,
+                  (i) => DropdownMenuItem(
+                    value: i + 1,
+                    child: Text(monthNames[i]),
+                  ),
+                ),
+                onChanged: (v) {
+                  if (v != null) {
+                    setDialogState(() => month = v);
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text('Day '),
+                  SizedBox(
+                    width: 60,
+                    child: TextField(
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (v) {
+                        final parsed = int.tryParse(v);
+                        if (parsed != null && parsed >= 1 && parsed <= 31) {
+                          day = parsed;
+                        }
+                      },
+                      controller: TextEditingController(text: '$day'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() => _recurrence = YearlyRecurrence(month, day));
                 Navigator.pop(ctx);
               },
               child: const Text('OK'),
@@ -479,7 +601,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
             FilledButton(
               onPressed: () {
                 if (selected.isNotEmpty) {
-                  setState(() => _recurrence = RecurrenceRule.weekly(selected));
+                  setState(() => _recurrence = WeeklyRecurrence(selected));
                 }
                 Navigator.pop(ctx);
               },

@@ -5,74 +5,151 @@ import '../models/task.dart';
 import '../state/app_state.dart';
 import 'task_editor_dialog.dart';
 
-class TaskListView extends StatelessWidget {
+class TaskListView extends StatefulWidget {
   final String listId;
   const TaskListView({super.key, required this.listId});
 
   @override
+  State<TaskListView> createState() => _TaskListViewState();
+}
+
+class _TaskListViewState extends State<TaskListView> {
+  final TextEditingController _newTaskController = TextEditingController();
+  final FocusNode _newTaskFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _newTaskController.dispose();
+    _newTaskFocus.dispose();
+    super.dispose();
+  }
+
+  void _addTask(AppState state) {
+    final title = _newTaskController.text.trim();
+    if (title.isEmpty) return;
+
+    final task = Task(
+      id: state.newId(),
+      title: title,
+      createdAt: DateTime.now(),
+      listId: widget.listId,
+      order: state.tasksForList(widget.listId).length,
+    );
+    state.addTask(task);
+    _newTaskController.clear();
+    _newTaskFocus.requestFocus();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final tasks = state.tasksForList(listId);
+    final tasks = state.tasksForList(widget.listId);
     final pending = tasks.where((t) => !t.isCompleted).toList()
       ..sort((a, b) => a.order.compareTo(b.order));
     final completed = tasks.where((t) => t.isCompleted).toList()
       ..sort((a, b) => a.order.compareTo(b.order));
 
     return Scaffold(
-      body: tasks.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No tasks yet',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                ],
+      body: Column(
+        children: [
+          // Add task input at the top
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                  width: 1,
+                ),
               ),
-            )
-          : ReorderableListView(
-              padding: const EdgeInsets.only(bottom: 80),
-              buildDefaultDragHandles: false,
-              onReorder: (oldIndex, newIndex) {
-                _reorderTasks(state, pending, completed, oldIndex, newIndex);
-              },
+            ),
+            child: Row(
               children: [
-                ...pending.asMap().entries.map(
-                  (e) => _TaskTile(
-                    key: ValueKey(e.value.id),
-                    task: e.value,
-                    index: e.key,
+                Expanded(
+                  child: TextField(
+                    controller: _newTaskController,
+                    focusNode: _newTaskFocus,
+                    decoration: InputDecoration(
+                      hintText: 'Add a task...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    onSubmitted: (_) => _addTask(state),
+                    textInputAction: TextInputAction.done,
                   ),
                 ),
-                if (completed.isNotEmpty) ...[
-                  Padding(
-                    key: const ValueKey('completed_header'),
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                    child: const Text(
-                      'Completed',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () => _addTask(state),
+                    child: const Text('Add'),
                   ),
-                  ...completed.asMap().entries.map(
-                    (e) => _TaskTile(
-                      key: ValueKey(e.value.id),
-                      task: e.value,
-                      index: pending.length + e.key,
-                    ),
-                  ),
-                ],
+                ),
               ],
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _addTask(context, state),
-        child: const Icon(Icons.add),
+          ),
+          // Task list
+          Expanded(
+            child: tasks.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No tasks yet',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                      ],
+                    ),
+                  )
+                : ReorderableListView(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    buildDefaultDragHandles: false,
+                    onReorder: (oldIndex, newIndex) {
+                      _reorderTasks(state, pending, completed, oldIndex, newIndex);
+                    },
+                    children: [
+                      ...pending.asMap().entries.map(
+                        (e) => _TaskTile(
+                          key: ValueKey(e.value.id),
+                          task: e.value,
+                          index: e.key,
+                        ),
+                      ),
+                      if (completed.isNotEmpty) ...[
+                        Padding(
+                          key: const ValueKey('completed_header'),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                          child: const Text(
+                            'Completed',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        ...completed.asMap().entries.map(
+                          (e) => _TaskTile(
+                            key: ValueKey(e.value.id),
+                            task: e.value,
+                            index: pending.length + e.key,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -114,24 +191,6 @@ class TaskListView extends StatelessWidget {
       );
     }
     state.updateTasks(updatedTasks);
-  }
-
-  void _addTask(BuildContext context, AppState state) {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '',
-      barrierColor: Colors.transparent,
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return TaskEditorDialog(
-          listId: listId,
-          clickPosition: Offset(
-            MediaQuery.of(context).size.width / 2,
-            MediaQuery.of(context).size.height / 2,
-          ),
-        );
-      },
-    );
   }
 }
 
