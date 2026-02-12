@@ -17,7 +17,8 @@ import 'web_auth.dart' as web_auth;
 /// 4. In the Settings tab:
 ///    • Copy the **App key** and paste it into [_appKey] below.
 ///    • Add redirect URIs:
-///      – For web: your app's URL (e.g. `http://localhost:8080`)
+///      – For web development: `http://localhost:8080/` (note the trailing slash)
+///      – For web production: `https://reosfire.github.io/Todo/` (your GitHub Pages URL with repo name)
 ///      – For mobile: `todoapp://auth`
 /// 5. Run the app and tap "Connect to Dropbox".
 class DropboxService {
@@ -259,8 +260,8 @@ class DropboxService {
 
   String get _redirectUri {
     if (kIsWeb) {
-      final webUri = web_auth.getAppRedirectUri();
-      return webUri.isNotEmpty ? webUri : 'http://localhost:8080';
+      // On web, use the actual origin (https://reosfire.github.io or http://localhost:8080)
+      return web_auth.getAppRedirectUri();
     }
     return 'todoapp://auth';
   }
