@@ -26,7 +26,6 @@ void clearUrlAuthCode() {
 /// For example: https://reosfire.github.io/Todo or http://localhost:8080
 String getAppRedirectUri() {
   final origin = web.window.location.origin;
-  log(origin);
   if (origin.contains("github.io")) {
     return '$origin/Todo';
   } else {
