@@ -262,11 +262,11 @@ class _TaskTileState extends State<_TaskTile> {
                 ReorderableDragStartListener(
                   index: widget.index,
                   child: Icon(
-                    Icons.drag_indicator,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    Icons.drag_handle_rounded,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 Checkbox(
                   value: completed,
                   onChanged: (_) => state.toggleTask(widget.task),
@@ -303,16 +303,16 @@ class _TaskTileState extends State<_TaskTile> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (isRecurring)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Icon(
-                      Icons.repeat,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  Icon(
+                    Icons.repeat,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                   ),
                 IconButton(
-                  icon: const Icon(Icons.more_vert, size: 20),
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                   onPressed: () {
                     final RenderBox button =
                         context.findRenderObject() as RenderBox;
@@ -327,8 +327,6 @@ class _TaskTileState extends State<_TaskTile> {
                       ),
                     );
                   },
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
