@@ -85,16 +85,21 @@ class _SmartTaskTile extends StatelessWidget {
               color: Theme.of(context).colorScheme.onSurfaceVariant)
           : null,
       onTap: () {
-        showDialog(
+        showGeneralDialog(
           context: context,
-          builder: (_) => TaskEditorDialog(
-            listId: task.listId,
-            existingTask: task,
-            clickPosition: Offset(
-              MediaQuery.of(context).size.width / 2,
-              MediaQuery.of(context).size.height / 2,
-            ),
-          ),
+          barrierDismissible: true,
+          barrierLabel: '',
+          barrierColor: Colors.transparent,
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return TaskEditorDialog(
+              listId: task.listId,
+              existingTask: task,
+              clickPosition: Offset(
+                MediaQuery.of(context).size.width / 2,
+                MediaQuery.of(context).size.height / 2,
+              ),
+            );
+          },
         );
       },
     );

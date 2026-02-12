@@ -75,15 +75,20 @@ class TaskListView extends StatelessWidget {
   }
 
   void _addTask(BuildContext context, AppState state) {
-    showDialog(
+    showGeneralDialog(
       context: context,
-      builder: (_) => TaskEditorDialog(
-        listId: listId,
-        clickPosition: Offset(
-          MediaQuery.of(context).size.width / 2,
-          MediaQuery.of(context).size.height / 2,
-        ),
-      ),
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.transparent,
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return TaskEditorDialog(
+          listId: listId,
+          clickPosition: Offset(
+            MediaQuery.of(context).size.width / 2,
+            MediaQuery.of(context).size.height / 2,
+          ),
+        );
+      },
     );
   }
 }
@@ -147,13 +152,18 @@ class _TaskTileState extends State<_TaskTile> {
   }
 
   void _showEditDialog(BuildContext context, Offset position) {
-    showDialog(
+    showGeneralDialog(
       context: context,
-      builder: (_) => TaskEditorDialog(
-        listId: widget.task.listId,
-        existingTask: widget.task,
-        clickPosition: position,
-      ),
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.transparent,
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return TaskEditorDialog(
+          listId: widget.task.listId,
+          existingTask: widget.task,
+          clickPosition: position,
+        );
+      },
     );
   }
 

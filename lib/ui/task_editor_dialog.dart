@@ -113,15 +113,24 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     
-    final dialog = AlertDialog(
-      insetPadding: EdgeInsets.zero,
-      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-      actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      title: Text(_isEditing ? 'Edit Task' : 'New Task'),
-      content: SizedBox(
+    final dialog = Card(
+      elevation: 8,
+      child: Container(
         width: 400,
-        child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title
+            Text(
+              _isEditing ? 'Edit Task' : 'New Task',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 20),
+            // Content
+            Flexible(
+              child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,27 +243,37 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
               ),
             ],
           ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Actions
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (_isEditing)
+                  TextButton(
+                    onPressed: () {
+                      state.deleteTask(widget.existingTask!.id);
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Delete',
+                        style: TextStyle(color: Colors.red)),
+                  ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _save,
+                  child: Text(_isEditing ? 'Save' : 'Add'),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-      actions: [
-        if (_isEditing)
-          TextButton(
-            onPressed: () {
-              state.deleteTask(widget.existingTask!.id);
-              Navigator.pop(context);
-            },
-            child:
-                const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _save,
-          child: Text(_isEditing ? 'Save' : 'Add'),
-        ),
-      ],
     );
 
     // Wrap dialog in positioned widget with measured position
