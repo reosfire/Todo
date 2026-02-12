@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../models/task_list.dart';
 import '../models/folder.dart';
+import '../services/storage_service.dart';
 import 'task_list_view.dart';
 import 'smart_list_view.dart';
 import 'list_editor_dialog.dart';
@@ -21,16 +22,28 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String? _selectedListId;
   String? _selectedSmartListId;
+  Set<String> _expandedFolderIds = {};
+  final _storageService = StorageService();
 
   @override
   void initState() {
     super.initState();
+    _loadExpandedFolders();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final state = context.read<AppState>();
       if (state.lists.isNotEmpty && _selectedListId == null) {
         setState(() => _selectedListId = state.lists.first.id);
       }
     });
+  }
+
+  Future<void> _loadExpandedFolders() async {
+    final ids = await _storageService.loadExpandedFolderIds();
+    setState(() => _expandedFolderIds = ids);
+  }
+
+  Future<void> _saveExpandedFolders() async {
+    await _storageService.saveExpandedFolderIds(_expandedFolderIds);
   }
 
   void _selectList(String id) {
@@ -292,6 +305,17 @@ class _HomePageState extends State<HomePage> {
       return _HoverTrailingTile(
         key: ValueKey('folder_${folder.id}'),
         child: (isHovered) => ExpansionTile(
+          initiallyExpanded: _expandedFolderIds.contains(folder.id),
+          onExpansionChanged: (expanded) {
+            setState(() {
+              if (expanded) {
+                _expandedFolderIds.add(folder.id);
+              } else {
+                _expandedFolderIds.remove(folder.id);
+              }
+            });
+            _saveExpandedFolders();
+          },
           leading: const Icon(Icons.folder_outlined, size: 20),
           title: Text(folder.name),
           dense: true,

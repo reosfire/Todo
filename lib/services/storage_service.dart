@@ -101,4 +101,19 @@ class StorageService {
       await File('${dir.path}/$_syncIndexFile').writeAsString(json);
     }
   }
+
+  // ───── UI state (local only) ─────
+
+  static const _expandedFoldersKey = 'expanded_folder_ids';
+
+  Future<Set<String>> loadExpandedFolderIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(_expandedFoldersKey);
+    return ids?.toSet() ?? {};
+  }
+
+  Future<void> saveExpandedFolderIds(Set<String> folderIds) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_expandedFoldersKey, folderIds.toList());
+  }
 }
