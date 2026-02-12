@@ -75,8 +75,8 @@ class AppState extends ChangeNotifier {
 
   Future<void> _save() async {
     _data.lastModified = DateTime.now();
-    await _storage.save(_data);
     notifyListeners();
+    await _storage.save(_data);
   }
 
   // ───── Tasks ─────
