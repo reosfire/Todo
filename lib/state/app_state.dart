@@ -177,6 +177,150 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<Task> tasksForList(String listId) =>
       _data.tasks.where((t) => t.listId == listId).toList();
 
+  /// Get tasks for a list in their linked-list order.
+  /// [completedSection] determines whether to return completed or pending tasks.
+  List<Task> tasksForListOrdered(String listId, {required bool completedSection}) {
+    final allTasks = tasksForList(listId)
+        .where((t) => t.isCompleted == completedSection)
+        .toList();
+    
+    if (allTasks.isEmpty) return [];
+    
+    // Build a map for quick lookup.
+    final taskMap = {for (var t in allTasks) t.id: t};
+    
+    // Find the head (first task with no previous).
+    Task? head;
+    for (var task in allTasks) {
+      if (task.previousTaskId == null || 
+          !taskMap.containsKey(task.previousTaskId)) {
+        head = task;
+        break;
+      }
+    }
+    
+    // If no clear head found (e.g., cycle or orphaned tasks), fall back to creation time.
+    if (head == null) {
+      return allTasks..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+    
+    // Traverse the linked list from head.
+    final ordered = <Task>[];
+    Task? current = head;
+    final visited = <String>{};
+    
+    while (current != null && !visited.contains(current.id)) {
+      ordered.add(current);
+      visited.add(current.id);
+      
+      final nextId = current.nextTaskId;
+      if (nextId == null || !taskMap.containsKey(nextId)) break;
+      current = taskMap[nextId]!;
+    }
+    
+    // Include any orphaned tasks at the end (tasks not in the chain).
+    for (var task in allTasks) {
+      if (!visited.contains(task.id)) {
+        ordered.add(task);
+      }
+    }
+    
+    return ordered;
+  }
+
+  /// Reorder a task by updating its position in the linked list.
+  /// [task] is the task to move.
+  /// [newPrevious] is the task that should come before it (null = move to head).
+  /// [newNext] is the task that should come after it (null = move to tail).
+  Future<void> reorderTask(Task task, Task? newPrevious, Task? newNext) async {
+    // Track which tasks need updates and what their new links should be.
+    final taskUpdates = <String, ({String? prev, String? next})>{};
+    
+    // 1. Remove task from its current position.
+    final oldPrev = task.previousTaskId != null 
+        ? taskById(task.previousTaskId!) 
+        : null;
+    final oldNext = task.nextTaskId != null 
+        ? taskById(task.nextTaskId!) 
+        : null;
+    
+    // Unlink old neighbors from the moved task.
+    if (oldPrev != null) {
+      taskUpdates[oldPrev.id] = (
+        prev: oldPrev.previousTaskId,
+        next: oldNext?.id,
+      );
+    }
+    if (oldNext != null) {
+      taskUpdates[oldNext.id] = (
+        prev: oldPrev?.id,
+        next: oldNext.nextTaskId,
+      );
+    }
+    
+    // 2. Insert task at new position.
+    taskUpdates[task.id] = (
+      prev: newPrevious?.id,
+      next: newNext?.id,
+    );
+    
+    // Link new neighbors to the moved task.
+    if (newPrevious != null) {
+      // If newPrevious was already updated (e.g., it was oldNext), merge the updates.
+      final existing = taskUpdates[newPrevious.id];
+      taskUpdates[newPrevious.id] = (
+        prev: existing?.prev ?? newPrevious.previousTaskId,
+        next: task.id,
+      );
+    }
+    if (newNext != null) {
+      final existing = taskUpdates[newNext.id];
+      taskUpdates[newNext.id] = (
+        prev: task.id,
+        next: existing?.next ?? newNext.nextTaskId,
+      );
+    }
+    
+    // Build final task updates from the map.
+    final updates = <Task>[];
+    for (final entry in taskUpdates.entries) {
+      final originalTask = taskById(entry.key);
+      if (originalTask == null) continue;
+      
+      updates.add(copyTask(
+        originalTask,
+        previousTaskId: entry.value.prev,
+        nextTaskId: entry.value.next,
+      ));
+    }
+    
+    await updateTasks(updates);
+  }
+
+  /// Helper to create a copy of a task with updated link pointers.
+  Task copyTask(
+    Task task, {
+    String? previousTaskId,
+    String? nextTaskId,
+    bool updatePrevious = true,
+    bool updateNext = true,
+  }) {
+    return Task(
+      id: task.id,
+      title: task.title,
+      notes: task.notes,
+      isCompleted: task.isCompleted,
+      createdAt: task.createdAt,
+      scheduledDate: task.scheduledDate,
+      recurrence: task.recurrence,
+      tagIds: task.tagIds,
+      listId: task.listId,
+      previousTaskId: updatePrevious ? previousTaskId : task.previousTaskId,
+      nextTaskId: updateNext ? nextTaskId : task.nextTaskId,
+      completedDates: task.completedDates,
+    );
+  }
+
   Task? taskById(String id) {
     try {
       return _data.tasks.firstWhere((t) => t.id == id);

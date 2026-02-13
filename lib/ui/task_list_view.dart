@@ -24,23 +24,36 @@ class _TaskListViewState extends State<TaskListView> {
     super.dispose();
   }
 
-  void _addTask(AppState state) {
+  void _addTask(AppState state) async {
     final title = _newTaskController.text.trim();
     if (title.isEmpty) return;
 
-    final existingTasks = state.tasksForList(widget.listId);
-    final maxOrder = existingTasks.isEmpty
-        ? 0
-        : existingTasks.map((t) => t.order).reduce((a, b) => a > b ? a : b);
+    // Find the current head of pending tasks.
+    final pendingTasks = state.tasksForListOrdered(
+      widget.listId,
+      completedSection: false,
+    );
+    final currentHead = pendingTasks.isNotEmpty ? pendingTasks.first : null;
 
+    // Create new task as the new head (previousTaskId = null).
     final task = Task(
       id: state.newId(),
       title: title,
       createdAt: DateTime.now(),
       listId: widget.listId,
-      order: maxOrder + 1,
+      previousTaskId: null,
+      nextTaskId: currentHead?.id,
     );
-    state.addTask(task);
+    
+    await state.addTask(task);
+    
+    // Update the old head to point back to the new task.
+    if (currentHead != null) {
+      await state.updateTask(
+        state.copyTask(currentHead, previousTaskId: task.id),
+      );
+    }
+    
     _newTaskController.clear();
     _newTaskFocus.requestFocus();
   }
@@ -48,11 +61,14 @@ class _TaskListViewState extends State<TaskListView> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final tasks = state.tasksForList(widget.listId);
-    final pending = tasks.where((t) => !t.isCompleted).toList()
-      ..sort((a, b) => b.order.compareTo(a.order));
-    final completed = tasks.where((t) => t.isCompleted).toList()
-      ..sort((a, b) => b.order.compareTo(a.order));
+    final pending = state.tasksForListOrdered(
+      widget.listId,
+      completedSection: false,
+    );
+    final completed = state.tasksForListOrdered(
+      widget.listId,
+      completedSection: true,
+    );
 
     return Scaffold(
       body: Column(
@@ -102,7 +118,7 @@ class _TaskListViewState extends State<TaskListView> {
           ),
           // Task list
           Expanded(
-            child: tasks.isEmpty
+            child: pending.isEmpty && completed.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -178,30 +194,26 @@ class _TaskListViewState extends State<TaskListView> {
 
     final allTasks = [...pending, ...completed];
     if (oldIndex < newIndex) newIndex--;
-    final task = allTasks.removeAt(oldIndex);
-    allTasks.insert(newIndex, task);
+    final task = allTasks[oldIndex];
 
-    // Update order field for all affected tasks by creating new Task instances
-    final updatedTasks = <Task>[];
-    for (var i = 0; i < allTasks.length; i++) {
-      final t = allTasks[i];
-      updatedTasks.add(
-        Task(
-          id: t.id,
-          title: t.title,
-          notes: t.notes,
-          isCompleted: t.isCompleted,
-          createdAt: t.createdAt,
-          scheduledDate: t.scheduledDate,
-          recurrence: t.recurrence,
-          tagIds: t.tagIds,
-          listId: t.listId,
-          order: i,
-          completedDates: t.completedDates,
-        ),
-      );
+    // Determine the new previous and next tasks.
+    Task? newPrevious;
+    Task? newNext;
+
+    if (newIndex > 0) {
+      newPrevious = allTasks[newIndex - 1];
     }
-    state.updateTasks(updatedTasks);
+    if (newIndex < allTasks.length - 1) {
+      newNext = allTasks[newIndex + 1];
+    }
+
+    // Handle edge case: if the task is moving to where it already is
+    if (newPrevious?.id == task.previousTaskId && 
+        newNext?.id == task.nextTaskId) {
+      return;
+    }
+
+    state.reorderTask(task, newPrevious, newNext);
   }
 }
 
@@ -270,7 +282,8 @@ class _TaskTileState extends State<_TaskTile> {
         recurrence: widget.task.recurrence,
         tagIds: widget.task.tagIds,
         listId: widget.task.listId,
-        order: widget.task.order,
+        previousTaskId: widget.task.previousTaskId,
+        nextTaskId: widget.task.nextTaskId,
         completedDates: widget.task.completedDates,
       );
       state.updateTask(updated);

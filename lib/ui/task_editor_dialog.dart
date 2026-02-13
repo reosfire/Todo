@@ -319,23 +319,34 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
       task.listId = _listId;
       state.updateTask(task);
     } else {
-      final maxOrder = state.tasks.isEmpty
-          ? 0
-          : state.tasks.map((t) => t.order).reduce((a, b) => a > b ? a : b);
-
-      state.addTask(
-        Task(
-          id: state.newId(),
-          title: title,
-          notes: _notesCtrl.text.trim(),
-          createdAt: DateTime.now(),
-          scheduledDate: _scheduledDate,
-          recurrence: _recurrence,
-          tagIds: _tagIds,
-          listId: _listId,
-          order: maxOrder + 1,
-        ),
+      // Find the current head of pending tasks in the selected list.
+      final pendingTasks = state.tasksForListOrdered(
+        _listId,
+        completedSection: false,
       );
+      final currentHead = pendingTasks.isNotEmpty ? pendingTasks.first : null;
+
+      final newTask = Task(
+        id: state.newId(),
+        title: title,
+        notes: _notesCtrl.text.trim(),
+        createdAt: DateTime.now(),
+        scheduledDate: _scheduledDate,
+        recurrence: _recurrence,
+        tagIds: _tagIds,
+        listId: _listId,
+        previousTaskId: null,
+        nextTaskId: currentHead?.id,
+      );
+      
+      state.addTask(newTask);
+      
+      // Update the old head to point back to the new task.
+      if (currentHead != null) {
+        state.updateTask(
+          state.copyTask(currentHead, previousTaskId: newTask.id),
+        );
+      }
     }
     Navigator.pop(context);
   }

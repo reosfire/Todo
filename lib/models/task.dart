@@ -10,7 +10,12 @@ class Task {
   RecurrenceRule? recurrence;
   Set<String> tagIds;
   String listId;
-  int order;
+  
+  /// Doubly-linked list pointers for task ordering within a list.
+  /// The first task in a list has previousTaskId = null.
+  /// The last task in a list has nextTaskId = null.
+  String? previousTaskId;
+  String? nextTaskId;
 
   /// For recurring tasks: dates on which the task was explicitly completed.
   Set<DateTime> completedDates;
@@ -25,7 +30,8 @@ class Task {
     this.recurrence,
     Set<String>? tagIds,
     required this.listId,
-    this.order = 0,
+    this.previousTaskId,
+    this.nextTaskId,
     Set<DateTime>? completedDates,
   }) : tagIds = tagIds ?? {},
        completedDates = completedDates ?? {};
@@ -64,7 +70,8 @@ class Task {
     'recurrence': recurrence?.toJson(),
     'tagIds': tagIds.toList(),
     'listId': listId,
-    'order': order,
+    'previousTaskId': previousTaskId,
+    'nextTaskId': nextTaskId,
     'completedDates': completedDates.map((d) => d.toIso8601String()).toList(),
   };
 
@@ -82,7 +89,8 @@ class Task {
         : null,
     tagIds: (json['tagIds'] as List?)?.map((e) => e as String).toSet() ?? {},
     listId: json['listId'] as String,
-    order: json['order'] as int? ?? 0,
+    previousTaskId: json['previousTaskId'] as String?,
+    nextTaskId: json['nextTaskId'] as String?,
     completedDates:
         (json['completedDates'] as List?)
             ?.map((e) => DateTime.parse(e as String))
