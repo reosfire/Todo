@@ -21,6 +21,24 @@ jobs:
 
       - run: flutter pub get
 
+      # Decode the keystore from base64 secret and write key.properties
+      - name: Set up signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=release-keystore.jks
+          EOF
+          # Trim leading whitespace that the heredoc indentation adds
+          sed -i 's/^[[:space:]]*//' android/key.properties
+
       - run: >
           flutter build apk
           --release
