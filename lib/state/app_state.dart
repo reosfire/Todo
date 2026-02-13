@@ -428,11 +428,77 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         task.completedDates.add(d);
       }
+      await _save();
+      _syncService.pushEntity('tasks', task.id, task.toJson());
     } else {
-      task.isCompleted = !task.isCompleted;
+      // For non-recurring tasks, toggle moves the task between sections.
+      // We need to properly move it in the linked list.
+      await _toggleTaskWithReorder(task);
     }
+  }
+
+  /// Toggle a task's completion status and move it to the head of the new section.
+  Future<void> _toggleTaskWithReorder(Task task) async {
+    final updates = <Task>[];
+    
+    // 1. Remove task from its current section's linked list.
+    final oldPrev = task.previousTaskId != null ? taskById(task.previousTaskId!) : null;
+    final oldNext = task.nextTaskId != null ? taskById(task.nextTaskId!) : null;
+    
+    if (oldPrev != null) {
+      updates.add(copyTask(
+        oldPrev,
+        previousTaskId: oldPrev.previousTaskId,
+        nextTaskId: oldNext?.id,
+      ));
+    }
+    if (oldNext != null) {
+      updates.add(copyTask(
+        oldNext,
+        previousTaskId: oldPrev?.id,
+        nextTaskId: oldNext.nextTaskId,
+      ));
+    }
+    
+    // 2. Toggle completion status.
+    final newCompletedStatus = !task.isCompleted;
+    
+    // 3. Find the head of the new section.
+    final newSectionTasks = tasksForListOrdered(
+      task.listId,
+      completedSection: newCompletedStatus,
+    );
+    final newSectionHead = newSectionTasks.isNotEmpty ? newSectionTasks.first : null;
+    
+    // 4. Insert task at the head of the new section.
+    final updatedTask = copyTask(
+      task,
+      previousTaskId: null,
+      nextTaskId: newSectionHead?.id,
+    );
+    updatedTask.isCompleted = newCompletedStatus;
+    updates.add(updatedTask);
+    
+    // 5. Update the old head of the new section to point back.
+    if (newSectionHead != null) {
+      updates.add(copyTask(
+        newSectionHead,
+        previousTaskId: task.id,
+        nextTaskId: newSectionHead.nextTaskId,
+      ));
+    }
+    
+    // Apply all updates atomically.
+    for (final update in updates) {
+      final i = _data.tasks.indexWhere((t) => t.id == update.id);
+      if (i >= 0) _data.tasks[i] = update;
+    }
+    
     await _save();
-    _syncService.pushEntity('tasks', task.id, task.toJson());
+    
+    for (final update in updates) {
+      _syncService.pushEntity('tasks', update.id, update.toJson());
+    }
   }
 
   // ───── Lists ─────
