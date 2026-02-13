@@ -127,19 +127,22 @@ class SyncService {
 
     _enqueue(() async {
       try {
-        // 1. Upload / delete each entity file.
-        for (final entry in batch.entries) {
-          if (entry.value != null) {
-            await _dropbox.uploadFile(
-              '/${entry.key}.json',
-              jsonEncode(entry.value),
-            );
-          } else {
-            try {
-              await _dropbox.deleteFile('/${entry.key}.json');
-            } catch (_) {}
-          }
-        }
+        // 1. Upload / delete each entity file (in parallel).
+        await _runParallel(
+          batch.entries.map((entry) => () async {
+            if (entry.value != null) {
+              await _dropbox.uploadFile(
+                '/${entry.key}.json',
+                jsonEncode(entry.value),
+              );
+            } else {
+              try {
+                await _dropbox.deleteFile('/${entry.key}.json');
+              } catch (_) {}
+            }
+          }).toList(),
+          maxConcurrency: _maxUploadConcurrency,
+        );
 
         // 2. Single remote-index round-trip for the whole batch.
         final remoteIndex = await _downloadRemoteIndex();
@@ -226,59 +229,85 @@ class SyncService {
       }
     }
 
-    // 3. Download entities that are newer remotely.
+    // 3. Download entities that are newer remotely (in parallel).
+    final toDownload = <MapEntry<String, DateTime>>[];
     for (final entry in remoteIndex.entities.entries) {
       if (remoteIndex.deletions.containsKey(entry.key)) continue;
       final localTime = _localIndex.entities[entry.key];
       if (localTime == null || entry.value.isAfter(localTime)) {
+        toDownload.add(entry);
+      }
+    }
+    final downloadResults = await _downloadParallel(
+      toDownload.map((e) => e.key).toList(),
+    );
+    for (var i = 0; i < toDownload.length; i++) {
+      final entry = toDownload[i];
+      final content = downloadResults[i];
+      if (content != null) {
         try {
-          final content = await _dropbox.downloadFile('/${entry.key}.json');
-          if (content != null) {
-            final json = jsonDecode(content) as Map<String, dynamic>;
-            _applyEntityToData(localData, entry.key, json);
-            _localIndex.entities[entry.key] = entry.value;
-            localChanged = true;
-          }
+          final json = jsonDecode(content) as Map<String, dynamic>;
+          _applyEntityToData(localData, entry.key, json);
+          _localIndex.entities[entry.key] = entry.value;
+          localChanged = true;
         } catch (e) {
-          debugPrint('Error downloading ${entry.key}: $e');
+          debugPrint('Error parsing ${entry.key}: $e');
         }
       }
     }
 
-    // 4. Upload entities that are newer locally.
+    // 4. Upload entities that are newer locally (in parallel).
+    final toUpload = <MapEntry<String, DateTime>>[];
+    final toUploadJson = <String>[];
     for (final entry in _localIndex.entities.entries) {
       if (_localIndex.deletions.containsKey(entry.key)) continue;
-      // Skip if remote has a newer deletion.
       final remoteDeletion = remoteIndex.deletions[entry.key];
       if (remoteDeletion != null && remoteDeletion.isAfter(entry.value)) {
         continue;
       }
       final remoteTime = remoteIndex.entities[entry.key];
       if (remoteTime == null || entry.value.isAfter(remoteTime)) {
-        try {
-          final json = _extractEntityFromData(localData, entry.key);
-          if (json != null) {
-            await _dropbox.uploadFile('/${entry.key}.json', jsonEncode(json));
-            remoteIndex.entities[entry.key] = entry.value;
-            remoteIndex.deletions.remove(entry.key);
-          }
-        } catch (e) {
-          debugPrint('Error uploading ${entry.key}: $e');
+        final json = _extractEntityFromData(localData, entry.key);
+        if (json != null) {
+          toUpload.add(entry);
+          toUploadJson.add(jsonEncode(json));
         }
       }
     }
+    await _runParallel(
+      List.generate(toUpload.length, (i) => () async {
+        try {
+          await _dropbox.uploadFile(
+            '/${toUpload[i].key}.json',
+            toUploadJson[i],
+          );
+          remoteIndex.entities[toUpload[i].key] = toUpload[i].value;
+          remoteIndex.deletions.remove(toUpload[i].key);
+        } catch (e) {
+          debugPrint('Error uploading ${toUpload[i].key}: $e');
+        }
+      }),
+      maxConcurrency: _maxUploadConcurrency,
+    );
 
-    // 5. Push local deletions to remote.
+    // 5. Push local deletions to remote (in parallel).
+    final toDelete = <MapEntry<String, DateTime>>[];
     for (final entry in _localIndex.deletions.entries) {
       final remoteTime = remoteIndex.entities[entry.key];
       if (remoteTime != null && entry.value.isAfter(remoteTime)) {
+        toDelete.add(entry);
+      }
+    }
+    await _runParallel(
+      toDelete.map((entry) => () async {
         try {
           await _dropbox.deleteFile('/${entry.key}.json');
         } catch (_) {}
         remoteIndex.entities.remove(entry.key);
         remoteIndex.deletions[entry.key] = entry.value;
-      }
-    }
+      }).toList(),
+      maxConcurrency: _maxUploadConcurrency,
+    );
 
     // 6. Persist.
     await _uploadRemoteIndex(remoteIndex);
@@ -352,17 +381,20 @@ class SyncService {
     final remoteIndex = await _downloadRemoteIndex();
     final data = AppData();
 
-    for (final key in remoteIndex.entities.keys) {
-      if (remoteIndex.deletions.containsKey(key)) continue;
-      try {
-        final content = await _dropbox.downloadFile('/$key.json');
-        if (content != null) {
+    final keys = remoteIndex.entities.keys
+        .where((k) => !remoteIndex.deletions.containsKey(k))
+        .toList();
+    final results = await _downloadParallel(keys);
+    for (var i = 0; i < keys.length; i++) {
+      final content = results[i];
+      if (content != null) {
+        try {
           final json = jsonDecode(content) as Map<String, dynamic>;
-          _applyEntityToData(data, key, json);
-          _localIndex.entities[key] = remoteIndex.entities[key]!;
+          _applyEntityToData(data, keys[i], json);
+          _localIndex.entities[keys[i]] = remoteIndex.entities[keys[i]]!;
+        } catch (e) {
+          debugPrint('Error parsing ${keys[i]}: $e');
         }
-      } catch (e) {
-        debugPrint('Error downloading $key: $e');
       }
     }
 
@@ -377,32 +409,33 @@ class SyncService {
     final remoteIndex = SyncIndex();
     final now = DateTime.now();
 
-    Future<void> upload(
-      String type,
-      String id,
-      Map<String, dynamic> json,
-    ) async {
-      final key = '$type/$id';
-      await _dropbox.uploadFile('/$key.json', jsonEncode(json));
-      remoteIndex.entities[key] = now;
-      _localIndex.entities[key] = now;
-    }
-
+    // Collect all entities to upload.
+    final entries = <(String key, String content)>[];
     for (final t in data.tasks) {
-      await upload('tasks', t.id, t.toJson());
+      entries.add(('tasks/${t.id}', jsonEncode(t.toJson())));
     }
     for (final l in data.lists) {
-      await upload('lists', l.id, l.toJson());
+      entries.add(('lists/${l.id}', jsonEncode(l.toJson())));
     }
     for (final f in data.folders) {
-      await upload('folders', f.id, f.toJson());
+      entries.add(('folders/${f.id}', jsonEncode(f.toJson())));
     }
     for (final t in data.tags) {
-      await upload('tags', t.id, t.toJson());
+      entries.add(('tags/${t.id}', jsonEncode(t.toJson())));
     }
     for (final s in data.smartLists) {
-      await upload('smart_lists', s.id, s.toJson());
+      entries.add(('smart_lists/${s.id}', jsonEncode(s.toJson())));
     }
+
+    await _runParallel(
+      entries.map((e) => () async {
+        final (key, content) = e;
+        await _dropbox.uploadFile('/$key.json', content);
+        remoteIndex.entities[key] = now;
+        _localIndex.entities[key] = now;
+      }).toList(),
+      maxConcurrency: _maxUploadConcurrency,
+    );
 
     _localIndex.deletions.clear();
     await _uploadRemoteIndex(remoteIndex);
@@ -542,19 +575,27 @@ class SyncService {
         }
       }
 
-      // Download entities that are newer remotely.
+      // Download entities that are newer remotely (in parallel).
+      final toPull = <MapEntry<String, DateTime>>[];
       for (final entry in remoteIndex.entities.entries) {
         if (remoteIndex.deletions.containsKey(entry.key)) continue;
         final localTime = _localIndex.entities[entry.key];
         if (localTime == null || entry.value.isAfter(localTime)) {
+          toPull.add(entry);
+        }
+      }
+      final pullResults = await _downloadParallel(
+        toPull.map((e) => e.key).toList(),
+      );
+      for (var i = 0; i < toPull.length; i++) {
+        final entry = toPull[i];
+        final content = pullResults[i];
+        if (content != null) {
           try {
-            final content = await _dropbox.downloadFile('/${entry.key}.json');
-            if (content != null) {
-              final json = jsonDecode(content) as Map<String, dynamic>;
-              _applyEntityToData(localData, entry.key, json);
-              _localIndex.entities[entry.key] = entry.value;
-              changed = true;
-            }
+            final json = jsonDecode(content) as Map<String, dynamic>;
+            _applyEntityToData(localData, entry.key, json);
+            _localIndex.entities[entry.key] = entry.value;
+            changed = true;
           } catch (e) {
             debugPrint('Pull error for ${entry.key}: $e');
           }
@@ -587,6 +628,52 @@ class SyncService {
 
   void stopRemotePolling() {
     _polling = false;
+  }
+
+  // ───── Parallel I/O helpers ─────
+
+  static const _maxDownloadConcurrency = 10;
+  static const _maxUploadConcurrency = 4;
+
+  /// Download multiple files in parallel with bounded concurrency.
+  /// Returns a list of contents in the same order as [keys].
+  /// Failed / missing files are represented as `null`.
+  Future<List<String?>> _downloadParallel(List<String> keys) async {
+    if (keys.isEmpty) return [];
+    final results = List<String?>.filled(keys.length, null);
+    final pool = _Pool(_maxDownloadConcurrency);
+    await Future.wait(
+      List.generate(keys.length, (i) async {
+        await pool.acquire();
+        try {
+          results[i] = await _dropbox.downloadFile('/${keys[i]}.json');
+        } catch (e) {
+          debugPrint('Error downloading ${keys[i]}: $e');
+        } finally {
+          pool.release();
+        }
+      }),
+    );
+    return results;
+  }
+
+  /// Run multiple async operations with bounded concurrency.
+  Future<void> _runParallel(
+    List<Future<void> Function()> tasks, {
+    required int maxConcurrency,
+  }) async {
+    if (tasks.isEmpty) return;
+    final pool = _Pool(maxConcurrency);
+    await Future.wait(
+      tasks.map((task) async {
+        await pool.acquire();
+        try {
+          await task();
+        } finally {
+          pool.release();
+        }
+      }),
+    );
   }
 
   Future<void> _pollLoop(AppData Function() currentData) async {
@@ -635,6 +722,32 @@ class SyncService {
           await Future.delayed(const Duration(seconds: 10));
         }
       }
+    }
+  }
+}
+
+/// Tiny semaphore for bounding concurrency.
+class _Pool {
+  _Pool(this._maxConcurrency);
+  final int _maxConcurrency;
+  int _running = 0;
+  final _waiters = <Completer<void>>[];
+
+  Future<void> acquire() async {
+    if (_running < _maxConcurrency) {
+      _running++;
+      return;
+    }
+    final c = Completer<void>();
+    _waiters.add(c);
+    await c.future;
+  }
+
+  void release() {
+    if (_waiters.isNotEmpty) {
+      _waiters.removeAt(0).complete();
+    } else {
+      _running--;
     }
   }
 }

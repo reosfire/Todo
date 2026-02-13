@@ -93,25 +93,81 @@ class DropboxService {
     await prefs.remove(_keyCodeVerifier);
   }
 
+  // ───── Retry with exponential backoff ─────
+
+  static const _maxRetries = 5;
+  static const _initialDelayMs = 500;
+  static const _maxDelayMs = 30000; // 30 s cap
+  final _rng = Random();
+
+  /// Returns `true` if the HTTP status code is retryable.
+  bool _isRetryable(int statusCode) =>
+      statusCode == 429 || // rate limit
+      statusCode == 500 ||
+      statusCode == 502 ||
+      statusCode == 503 ||
+      statusCode == 507;
+
+  /// Executes [request] with up to [_maxRetries] retries using exponential
+  /// backoff + jitter.  The first attempt fires immediately.
+  ///
+  /// The callback receives no arguments and must return an [http.Response].
+  /// If the response status is retryable the helper waits and tries again.
+  /// After exhausting retries it returns the last response as-is.
+  Future<http.Response> _retryWithBackoff(
+    Future<http.Response> Function() request,
+  ) async {
+    late http.Response response;
+    for (var attempt = 0; attempt <= _maxRetries; attempt++) {
+      if (attempt > 0) {
+        // Exponential: 500, 1000, 2000, 4000, 8000 ms … capped at 30 s.
+        final baseDelay = (_initialDelayMs * (1 << (attempt - 1)))
+            .clamp(0, _maxDelayMs);
+        // Jitter: ±25 % of the base delay.
+        final jitter = (baseDelay * 0.25 * (2 * _rng.nextDouble() - 1)).round();
+        final delay = (baseDelay + jitter).clamp(0, _maxDelayMs);
+        await Future.delayed(Duration(milliseconds: delay));
+      }
+      try {
+        response = await request();
+      } catch (e) {
+        // Network-level error (DNS, socket, TLS …).
+        if (attempt == _maxRetries) rethrow;
+        debugPrint('Dropbox request error (attempt $attempt): $e');
+        continue;
+      }
+      if (!_isRetryable(response.statusCode) || attempt == _maxRetries) {
+        return response;
+      }
+      debugPrint(
+        'Dropbox retryable ${response.statusCode} – '
+        'retry ${attempt + 1}/$_maxRetries',
+      );
+    }
+    return response;
+  }
+
   // ───── File operations ─────
 
   /// Upload [content] to [remotePath] (e.g. `/tasks/abc.json`).
   Future<void> uploadFile(String remotePath, String content) async {
     await _ensureValidToken();
 
-    final response = await http.post(
-      Uri.parse('https://content.dropboxapi.com/2/files/upload'),
-      headers: {
-        'Authorization': 'Bearer $_accessToken',
-        'Content-Type': 'application/octet-stream',
-        'Dropbox-API-Arg': jsonEncode({
-          'path': remotePath,
-          'mode': 'overwrite',
-          'autorename': false,
-          'mute': true,
-        }),
-      },
-      body: utf8.encode(content),
+    final response = await _retryWithBackoff(
+      () => http.post(
+        Uri.parse('https://content.dropboxapi.com/2/files/upload'),
+        headers: {
+          'Authorization': 'Bearer $_accessToken',
+          'Content-Type': 'application/octet-stream',
+          'Dropbox-API-Arg': jsonEncode({
+            'path': remotePath,
+            'mode': 'overwrite',
+            'autorename': false,
+            'mute': true,
+          }),
+        },
+        body: utf8.encode(content),
+      ),
     );
 
     if (response.statusCode != 200) {
@@ -127,12 +183,14 @@ class DropboxService {
   Future<String?> downloadFile(String remotePath) async {
     await _ensureValidToken();
 
-    final response = await http.post(
-      Uri.parse('https://content.dropboxapi.com/2/files/download'),
-      headers: {
-        'Authorization': 'Bearer $_accessToken',
-        'Dropbox-API-Arg': jsonEncode({'path': remotePath}),
-      },
+    final response = await _retryWithBackoff(
+      () => http.post(
+        Uri.parse('https://content.dropboxapi.com/2/files/download'),
+        headers: {
+          'Authorization': 'Bearer $_accessToken',
+          'Dropbox-API-Arg': jsonEncode({'path': remotePath}),
+        },
+      ),
     );
 
     if (response.statusCode == 409) return null; // not found
@@ -151,13 +209,15 @@ class DropboxService {
   Future<void> deleteFile(String remotePath) async {
     await _ensureValidToken();
 
-    final response = await http.post(
-      Uri.parse('https://api.dropboxapi.com/2/files/delete_v2'),
-      headers: {
-        'Authorization': 'Bearer $_accessToken',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'path': remotePath}),
+    final response = await _retryWithBackoff(
+      () => http.post(
+        Uri.parse('https://api.dropboxapi.com/2/files/delete_v2'),
+        headers: {
+          'Authorization': 'Bearer $_accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'path': remotePath}),
+      ),
     );
 
     // Ignore "not found" – the file is already gone.
@@ -178,19 +238,21 @@ class DropboxService {
   Future<String?> getLatestCursor() async {
     await _ensureValidToken();
 
-    final response = await http.post(
-      Uri.parse(
-        'https://api.dropboxapi.com/2/files/list_folder/get_latest_cursor',
+    final response = await _retryWithBackoff(
+      () => http.post(
+        Uri.parse(
+          'https://api.dropboxapi.com/2/files/list_folder/get_latest_cursor',
+        ),
+        headers: {
+          'Authorization': 'Bearer $_accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'path': '',
+          'recursive': true,
+          'include_deleted': false,
+        }),
       ),
-      headers: {
-        'Authorization': 'Bearer $_accessToken',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'path': '',
-        'recursive': true,
-        'include_deleted': false,
-      }),
     );
 
     if (response.statusCode != 200) {
