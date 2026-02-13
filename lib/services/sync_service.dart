@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import '../models/app_data.dart';
 import '../models/sync_index.dart';
@@ -198,6 +199,8 @@ class SyncService {
   }
 
   Future<AppData> _performFullSync(AppData localData) async {
+    _clearZipCache();
+
     // 1. Download remote index.
     final indexContent = await _dropbox.downloadFile('/index.json');
 
@@ -238,8 +241,9 @@ class SyncService {
         toDownload.add(entry);
       }
     }
-    final downloadResults = await _downloadParallel(
+    final downloadResults = await _smartDownload(
       toDownload.map((e) => e.key).toList(),
+      totalRemoteEntities: remoteIndex.entities.length,
     );
     for (var i = 0; i < toDownload.length; i++) {
       final entry = toDownload[i];
@@ -378,13 +382,17 @@ class SyncService {
   }
 
   Future<AppData> _performForceDownload() async {
+    _clearZipCache();
     final remoteIndex = await _downloadRemoteIndex();
     final data = AppData();
 
     final keys = remoteIndex.entities.keys
         .where((k) => !remoteIndex.deletions.containsKey(k))
         .toList();
-    final results = await _downloadParallel(keys);
+    final results = await _smartDownload(
+      keys,
+      totalRemoteEntities: remoteIndex.entities.length,
+    );
     for (var i = 0; i < keys.length; i++) {
       final content = results[i];
       if (content != null) {
@@ -553,6 +561,7 @@ class SyncService {
   /// Returns `true` if any local data was changed.
   Future<bool> pullRemoteChanges(AppData localData) async {
     if (!_dropbox.isSignedIn) return false;
+    _clearZipCache();
 
     try {
       final indexContent = await _dropbox.downloadFile('/index.json');
@@ -584,8 +593,9 @@ class SyncService {
           toPull.add(entry);
         }
       }
-      final pullResults = await _downloadParallel(
+      final pullResults = await _smartDownload(
         toPull.map((e) => e.key).toList(),
+        totalRemoteEntities: remoteIndex.entities.length,
       );
       for (var i = 0; i < toPull.length; i++) {
         final entry = toPull[i];
@@ -635,9 +645,54 @@ class SyncService {
   static const _maxDownloadConcurrency = 10;
   static const _maxUploadConcurrency = 4;
 
-  /// Download multiple files in parallel with bounded concurrency.
+  /// When the number of files to download exceeds this fraction of the
+  /// total remote entity count, download the whole folder as a zip instead
+  /// of issuing individual requests.
+  static const _zipRatioThreshold = 0.30;
+
+  /// When more than this many files need downloading, always prefer zip
+  /// regardless of the ratio.
+  static const _zipAbsoluteThreshold = 100;
+
+  /// Cached zip contents — populated by [_downloadViaZip] so a single zip
+  /// fetch can serve multiple callers during one sync cycle.
+  Map<String, String>? _cachedZipContents;
+
+  /// Download files using the best strategy:
+  /// - If [totalRemoteEntities] is provided and the download count exceeds
+  ///   [_zipRatioThreshold] of it, OR more than [_zipAbsoluteThreshold]
+  ///   files are requested, the entire folder is fetched as a zip.
+  /// - Otherwise individual parallel downloads are used.
+  ///
   /// Returns a list of contents in the same order as [keys].
   /// Failed / missing files are represented as `null`.
+  Future<List<String?>> _smartDownload(
+    List<String> keys, {
+    int totalRemoteEntities = 0,
+  }) async {
+    if (keys.isEmpty) return [];
+
+    final useZip = keys.length >= _zipAbsoluteThreshold ||
+        (totalRemoteEntities > 0 &&
+            keys.length / totalRemoteEntities >= _zipRatioThreshold);
+
+    if (useZip) {
+      debugPrint(
+        'Using zip download (${keys.length} files, '
+        '$totalRemoteEntities total)',
+      );
+      final zipContents = await _getZipContents();
+      if (zipContents != null) {
+        return keys.map((key) => zipContents[key]).toList();
+      }
+      // Zip failed — fall through to parallel downloads.
+      debugPrint('Zip download failed, falling back to parallel downloads');
+    }
+
+    return _downloadParallel(keys);
+  }
+
+  /// Download multiple files in parallel with bounded concurrency.
   Future<List<String?>> _downloadParallel(List<String> keys) async {
     if (keys.isEmpty) return [];
     final results = List<String?>.filled(keys.length, null);
@@ -655,6 +710,65 @@ class SyncService {
       }),
     );
     return results;
+  }
+
+  /// Known entity subfolder names in Dropbox.
+  static const _entityFolders = [
+    'tasks',
+    'lists',
+    'folders',
+    'tags',
+    'smart_lists',
+  ];
+
+  /// Download all entity subfolders as zips (in parallel) and extract every
+  /// JSON file into a `Map<entityKey, jsonContent>`.
+  /// Uses [_cachedZipContents] so repeated calls in one sync cycle are free.
+  Future<Map<String, String>?> _getZipContents() async {
+    if (_cachedZipContents != null) return _cachedZipContents;
+
+    try {
+      final contents = <String, String>{};
+
+      // Download each subfolder zip in parallel.
+      final zipResults = await Future.wait(
+        _entityFolders.map((folder) => _dropbox.downloadFolderZip('/$folder')),
+      );
+
+      for (var fi = 0; fi < _entityFolders.length; fi++) {
+        final zipBytes = zipResults[fi];
+        if (zipBytes == null) continue; // folder doesn't exist yet
+
+        final archive = ZipDecoder().decodeBytes(zipBytes);
+        for (final file in archive.files) {
+          if (!file.isFile || !file.name.endsWith('.json')) continue;
+
+          // Zip paths look like:  <folderName>/abc.json
+          // Strip the leading folder component added by download_zip.
+          var path = file.name;
+          final firstSlash = path.indexOf('/');
+          if (firstSlash >= 0) {
+            path = path.substring(firstSlash + 1); // e.g. abc.json
+          }
+          if (path.endsWith('.json')) {
+            final id = path.substring(0, path.length - 5); // e.g. abc
+            final key = '${_entityFolders[fi]}/$id';       // e.g. tasks/abc
+            contents[key] = utf8.decode(file.content as List<int>);
+          }
+        }
+      }
+
+      _cachedZipContents = contents;
+      return contents;
+    } catch (e) {
+      debugPrint('Zip extraction error: $e');
+      return null;
+    }
+  }
+
+  /// Clear the cached zip contents (call at the start of each sync cycle).
+  void _clearZipCache() {
+    _cachedZipContents = null;
   }
 
   /// Run multiple async operations with bounded concurrency.

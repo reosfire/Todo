@@ -230,6 +230,35 @@ class DropboxService {
     }
   }
 
+  /// Download a subfolder as a zip archive.
+  /// [folderPath] must be a non-root path (e.g. `/tasks`).
+  /// Returns the raw bytes of the zip, or `null` on error / empty folder.
+  Future<List<int>?> downloadFolderZip(String folderPath) async {
+    await _ensureValidToken();
+
+    final response = await _retryWithBackoff(
+      () => http.post(
+        Uri.parse('https://content.dropboxapi.com/2/files/download_zip'),
+        headers: {
+          'Authorization': 'Bearer $_accessToken',
+          'Dropbox-API-Arg': jsonEncode({'path': folderPath}),
+        },
+      ),
+    );
+
+    // 409 means the folder doesn't exist (no entities of that type yet).
+    if (response.statusCode == 409) return null;
+    if (response.statusCode != 200) {
+      debugPrint(
+        'Dropbox download_zip failed (${response.statusCode}): '
+        '${response.body}',
+      );
+      return null;
+    }
+
+    return response.bodyBytes;
+  }
+
   // ───── Folder cursor & longpoll ─────
 
   /// Get a cursor for the app folder's current state using
