@@ -28,15 +28,15 @@ class _TaskListViewState extends State<TaskListView> {
     final title = _newTaskController.text.trim();
     if (title.isEmpty) return;
 
-    // Find the current head of pending tasks.
+    // Find the current head of pending tasks to set nextTaskId.
     final pendingTasks = state.tasksForListOrdered(
       widget.listId,
       completedSection: false,
     );
     final currentHead = pendingTasks.isNotEmpty ? pendingTasks.first : null;
 
-    // Create new task as the new head (previousTaskId = null).
-    final task = Task(
+    // Create new task as the new head.
+    final newTask = Task(
       id: state.newId(),
       title: title,
       createdAt: DateTime.now(),
@@ -45,14 +45,8 @@ class _TaskListViewState extends State<TaskListView> {
       nextTaskId: currentHead?.id,
     );
     
-    await state.addTask(task);
-    
-    // Update the old head to point back to the new task.
-    if (currentHead != null) {
-      await state.updateTask(
-        state.copyTask(currentHead, previousTaskId: task.id),
-      );
-    }
+    // Add atomically with linked list update.
+    await state.addTaskAsHead(newTask);
     
     _newTaskController.clear();
     _newTaskFocus.requestFocus();
@@ -136,41 +130,47 @@ class _TaskListViewState extends State<TaskListView> {
                       ],
                     ),
                   )
-                : ReorderableListView(
+                : ListView(
                     padding: const EdgeInsets.only(bottom: 16),
-                    buildDefaultDragHandles: false,
-                    onReorder: (oldIndex, newIndex) {
-                      _reorderTasks(
-                        state,
-                        pending,
-                        completed,
-                        oldIndex,
-                        newIndex,
-                      );
-                    },
                     children: [
-                      ...pending.asMap().entries.map(
-                        (e) => _TaskTile(
-                          key: ValueKey(e.value.id),
-                          task: e.value,
-                          index: e.key,
+                      if (pending.isNotEmpty)
+                        ReorderableListView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          buildDefaultDragHandles: false,
+                          onReorder: (oldIndex, newIndex) {
+                            _reorderTasksInSection(state, pending, oldIndex, newIndex);
+                          },
+                          children: pending.map(
+                            (task) => _TaskTile(
+                              key: ValueKey(task.id),
+                              task: task,
+                              index: pending.indexOf(task),
+                            ),
+                          ).toList(),
                         ),
-                      ),
                       if (completed.isNotEmpty) ...[
-                        Padding(
-                          key: const ValueKey('completed_header'),
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                          child: const Text(
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+                          child: Text(
                             'Completed',
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                         ),
-                        ...completed.asMap().entries.map(
-                          (e) => _TaskTile(
-                            key: ValueKey(e.value.id),
-                            task: e.value,
-                            index: pending.length + e.key,
-                          ),
+                        ReorderableListView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          buildDefaultDragHandles: false,
+                          onReorder: (oldIndex, newIndex) {
+                            _reorderTasksInSection(state, completed, oldIndex, newIndex);
+                          },
+                          children: completed.map(
+                            (task) => _TaskTile(
+                              key: ValueKey(task.id),
+                              task: task,
+                              index: completed.indexOf(task),
+                            ),
+                          ).toList(),
                         ),
                       ],
                     ],
@@ -181,39 +181,23 @@ class _TaskListViewState extends State<TaskListView> {
     );
   }
 
-  void _reorderTasks(
+  void _reorderTasksInSection(
     AppState state,
-    List<Task> pending,
-    List<Task> completed,
+    List<Task> section,
     int oldIndex,
     int newIndex,
   ) {
-    // Don't allow reordering between pending and completed sections
-    if (oldIndex >= pending.length && newIndex < pending.length) return;
-    if (oldIndex < pending.length && newIndex >= pending.length) return;
-
-    final allTasks = [...pending, ...completed];
+    // Apply standard ReorderableListView adjustment
     if (oldIndex < newIndex) newIndex--;
-    final task = allTasks[oldIndex];
-
-    // Determine the new previous and next tasks.
-    Task? newPrevious;
-    Task? newNext;
-
-    if (newIndex > 0) {
-      newPrevious = allTasks[newIndex - 1];
-    }
-    if (newIndex < allTasks.length - 1) {
-      newNext = allTasks[newIndex + 1];
-    }
-
-    // Handle edge case: if the task is moving to where it already is
-    if (newPrevious?.id == task.previousTaskId && 
-        newNext?.id == task.nextTaskId) {
-      return;
-    }
-
-    state.reorderTask(task, newPrevious, newNext);
+    
+    // Simulate the reorder
+    final reordered = List<Task>.from(section);
+    final task = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, task);
+    
+    // Rebuild the linked list for this entire section from scratch.
+    // This is simpler and more reliable than trying to surgically update pointers.
+    state.rebuildLinkedListForTasks(reordered);
   }
 }
 

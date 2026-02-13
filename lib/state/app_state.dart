@@ -228,6 +228,33 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return ordered;
   }
 
+  /// Rebuild the linked list for a set of tasks based on their order in the list.
+  /// This is simpler than trying to surgically update pointers during reorder.
+  Future<void> rebuildLinkedListForTasks(List<Task> orderedTasks) async {
+    if (orderedTasks.isEmpty) return;
+    
+    final updates = <Task>[];
+    
+    for (var i = 0; i < orderedTasks.length; i++) {
+      final task = orderedTasks[i];
+      final prevId = i > 0 ? orderedTasks[i - 1].id : null;
+      final nextId = i < orderedTasks.length - 1 ? orderedTasks[i + 1].id : null;
+      
+      // Only update if the pointers actually changed
+      if (task.previousTaskId != prevId || task.nextTaskId != nextId) {
+        updates.add(copyTask(
+          task,
+          previousTaskId: prevId,
+          nextTaskId: nextId,
+        ));
+      }
+    }
+    
+    if (updates.isNotEmpty) {
+      await updateTasks(updates);
+    }
+  }
+
   /// Reorder a task by updating its position in the linked list.
   /// [task] is the task to move.
   /// [newPrevious] is the task that should come before it (null = move to head).
@@ -300,10 +327,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Helper to create a copy of a task with updated link pointers.
   Task copyTask(
     Task task, {
-    String? previousTaskId,
-    String? nextTaskId,
-    bool updatePrevious = true,
-    bool updateNext = true,
+    required String? previousTaskId,
+    required String? nextTaskId,
   }) {
     return Task(
       id: task.id,
@@ -315,10 +340,44 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       recurrence: task.recurrence,
       tagIds: task.tagIds,
       listId: task.listId,
-      previousTaskId: updatePrevious ? previousTaskId : task.previousTaskId,
-      nextTaskId: updateNext ? nextTaskId : task.nextTaskId,
+      previousTaskId: previousTaskId,
+      nextTaskId: nextTaskId,
       completedDates: task.completedDates,
     );
+  }
+
+  /// Add a new task to the head of its list's linked list chain.
+  /// This atomically adds the task and updates the old head if there is one.
+  Future<void> addTaskAsHead(Task newTask) async {
+    final updates = <Task>[newTask];
+    
+    // Find current head and update it to point back to new task.
+    final pendingTasks = tasksForListOrdered(
+      newTask.listId,
+      completedSection: newTask.isCompleted,
+    );
+    
+    if (pendingTasks.isNotEmpty) {
+      final oldHead = pendingTasks.first;
+      updates.add(copyTask(
+        oldHead,
+        previousTaskId: newTask.id,
+        nextTaskId: oldHead.nextTaskId, // Preserve the old next link
+      ));
+    }
+    
+    // Add to internal list and batch save/sync.
+    _data.tasks.add(newTask);
+    for (final task in updates.skip(1)) {
+      final i = _data.tasks.indexWhere((t) => t.id == task.id);
+      if (i >= 0) _data.tasks[i] = task;
+    }
+    
+    await _save();
+    
+    for (final task in updates) {
+      _syncService.pushEntity('tasks', task.id, task.toJson());
+    }
   }
 
   Task? taskById(String id) {

@@ -304,7 +304,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
     );
   }
 
-  void _save() {
+  void _save() async {
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) return;
     final state = context.read<AppState>();
@@ -317,7 +317,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
       task.recurrence = _recurrence;
       task.tagIds = _tagIds;
       task.listId = _listId;
-      state.updateTask(task);
+      await state.updateTask(task);
     } else {
       // Find the current head of pending tasks in the selected list.
       final pendingTasks = state.tasksForListOrdered(
@@ -339,14 +339,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
         nextTaskId: currentHead?.id,
       );
       
-      state.addTask(newTask);
-      
-      // Update the old head to point back to the new task.
-      if (currentHead != null) {
-        state.updateTask(
-          state.copyTask(currentHead, previousTaskId: newTask.id),
-        );
-      }
+      await state.addTaskAsHead(newTask);
     }
     Navigator.pop(context);
   }
