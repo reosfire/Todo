@@ -8,6 +8,7 @@ import 'task_list_view.dart';
 import 'smart_list_view.dart';
 import 'list_editor_dialog.dart';
 import 'folder_editor_dialog.dart';
+import '../models/smart_list.dart';
 import 'smart_list_editor_dialog.dart';
 import 'tag_manager_dialog.dart';
 import 'sync_settings_page.dart';
@@ -178,14 +179,61 @@ class _HomePageState extends State<HomePage> {
               children: [
                 // Smart lists
                 const _SectionHeader('SMART LISTS'),
-                ...state.smartLists.map(
-                  (sl) => ListTile(
+                // Built-in smart lists (always shown, not editable)
+                ...builtInSmartLists.map((sl) {
+                  final count = sl.filter.countTasks(state.tasks);
+                  return ListTile(
                     leading: Icon(sl.icon, color: sl.color),
                     title: Text(sl.name),
+                    trailing: count > 0
+                        ? SizedBox(
+                            width: 32,
+                            child: Text(
+                              '$count',
+                              style: Theme.of(context).textTheme.bodySmall,
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : null,
                     selected: _selectedSmartListId == sl.id,
                     onTap: () => _selectSmartList(sl.id),
                     dense: true,
-                  ),
+                  );
+                }),
+                // User-created smart lists
+                ...state.smartLists.map(
+                  (sl) {
+                    final count = sl.filter.countTasks(state.tasks);
+                    return _HoverTrailingTile(
+                      child: (isHovered) => ListTile(
+                        leading: Icon(sl.icon, color: sl.color),
+                        title: Text(sl.name),
+                        trailing: SizedBox(
+                          width: 32,
+                          child: isHovered
+                              ? IconButton(
+                                  icon: const Icon(Icons.more_horiz, size: 18),
+                                  onPressed: () =>
+                                      _showSmartListMenu(context, state, sl),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  visualDensity: VisualDensity.compact,
+                                )
+                              : count > 0
+                                  ? Text(
+                                      '$count',
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
+                                      textAlign: TextAlign.center,
+                                    )
+                                  : const SizedBox.shrink(),
+                        ),
+                        selected: _selectedSmartListId == sl.id,
+                        onTap: () => _selectSmartList(sl.id),
+                        dense: true,
+                      ),
+                    );
+                  },
                 ),
                 ListTile(
                   leading: const Icon(Icons.add, size: 20),
@@ -495,6 +543,44 @@ class _HomePageState extends State<HomePage> {
 
   void _showSmartListEditor(BuildContext ctx, AppState state) {
     showDialog(context: ctx, builder: (_) => const SmartListEditorDialog());
+  }
+
+  void _showSmartListMenu(BuildContext ctx, AppState state, SmartList sl) {
+    showModalBottomSheet(
+      context: ctx,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Edit'),
+              onTap: () {
+                Navigator.pop(ctx);
+                showDialog(
+                  context: ctx,
+                  builder: (_) => SmartListEditorDialog(smartList: sl),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title:
+                  const Text('Delete', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(ctx);
+                state.deleteSmartList(sl.id);
+                if (_selectedSmartListId == sl.id) {
+                  setState(() {
+                    _selectedSmartListId = builtInSmartLists.first.id;
+                  });
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showListMenu(BuildContext ctx, AppState state, TaskList list) {

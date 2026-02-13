@@ -139,31 +139,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (_data.lists.isEmpty) {
       _data.lists.add(TaskList(id: _uuid.v4(), name: 'My Tasks'));
     }
-    if (_data.smartLists.isEmpty) {
-      _data.smartLists.addAll([
-        SmartList(
-          id: 'smart_today',
-          name: 'Today',
-          iconCodePoint: Icons.today.codePoint,
-          colorValue: 0xFF66BB6A,
-          filter: SmartFilter.today(),
-        ),
-        SmartList(
-          id: 'smart_upcoming',
-          name: 'Upcoming',
-          iconCodePoint: Icons.upcoming.codePoint,
-          colorValue: 0xFF42A5F5,
-          filter: SmartFilter.upcoming(),
-        ),
-        SmartList(
-          id: 'smart_all',
-          name: 'All Tasks',
-          iconCodePoint: Icons.list_alt.codePoint,
-          colorValue: 0xFF78909C,
-          filter: SmartFilter.all(),
-        ),
-      ]);
-    }
+    // Remove legacy default smart lists (now replaced by built-in ones).
+    removeLegacySmartLists(_data.smartLists);
   }
 
   Future<void> _save() async {
@@ -641,6 +618,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   // ───── Smart Lists ─────
 
   SmartList? smartListById(String id) {
+    // Check built-in smart lists first.
+    for (final sl in builtInSmartLists) {
+      if (sl.id == id) return sl;
+    }
     try {
       return _data.smartLists.firstWhere((s) => s.id == id);
     } catch (_) {

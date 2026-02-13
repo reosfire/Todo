@@ -3,6 +3,15 @@ import 'package:provider/provider.dart';
 import '../models/smart_list.dart';
 import '../state/app_state.dart';
 
+/// The filter types available for user-created smart lists.
+enum _EditorFilterType {
+  overdue,
+  dateRange,
+  tags,
+  completed,
+  all,
+}
+
 class SmartListEditorDialog extends StatefulWidget {
   final SmartList? smartList;
   const SmartListEditorDialog({super.key, this.smartList});
@@ -13,8 +22,7 @@ class SmartListEditorDialog extends StatefulWidget {
 
 class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
   late final TextEditingController _nameCtrl;
-  SmartFilterType _filterType = SmartFilterType.today;
-  int _daysAhead = 7;
+  _EditorFilterType _filterType = _EditorFilterType.all;
   final Set<String> _tagIds = {};
   DateTime? _dateFrom;
   DateTime? _dateTo;
@@ -27,12 +35,29 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
     final sl = widget.smartList;
     _nameCtrl = TextEditingController(text: sl?.name ?? '');
     if (sl != null) {
-      _filterType = sl.filter.type;
-      _daysAhead = sl.filter.daysAhead;
-      _tagIds.addAll(sl.filter.tagIds);
-      _dateFrom = sl.filter.dateFrom;
-      _dateTo = sl.filter.dateTo;
+      _filterType = _filterTypeFromFilter(sl.filter);
+      if (sl.filter case TagsFilter(:final tagIds)) {
+        _tagIds.addAll(tagIds);
+      }
+      if (sl.filter case DateRangeFilter(:final dateFrom, :final dateTo)) {
+        _dateFrom = dateFrom;
+        _dateTo = dateTo;
+      }
     }
+  }
+
+  static _EditorFilterType _filterTypeFromFilter(SmartListFilter filter) {
+    return switch (filter) {
+      OverdueFilter() => _EditorFilterType.overdue,
+      DateRangeFilter() => _EditorFilterType.dateRange,
+      TagsFilter() => _EditorFilterType.tags,
+      CompletedFilter() => _EditorFilterType.completed,
+      AllTasksFilter() => _EditorFilterType.all,
+      // Built-in types should not appear in the editor, but handle gracefully.
+      TodayFilter() => _EditorFilterType.all,
+      TomorrowFilter() => _EditorFilterType.all,
+      UpcomingFilter() => _EditorFilterType.all,
+    };
   }
 
   @override
@@ -63,7 +88,7 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
                 autofocus: !_isEditing,
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<SmartFilterType>(
+              DropdownButtonFormField<_EditorFilterType>(
                 initialValue: _filterType,
                 decoration: const InputDecoration(
                   labelText: 'Filter type',
@@ -71,32 +96,24 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
                 ),
                 items: const [
                   DropdownMenuItem(
-                    value: SmartFilterType.today,
-                    child: Text('Today'),
+                    value: _EditorFilterType.all,
+                    child: Text('All incomplete'),
                   ),
                   DropdownMenuItem(
-                    value: SmartFilterType.upcoming,
-                    child: Text('Upcoming (N days)'),
-                  ),
-                  DropdownMenuItem(
-                    value: SmartFilterType.overdue,
+                    value: _EditorFilterType.overdue,
                     child: Text('Overdue'),
                   ),
                   DropdownMenuItem(
-                    value: SmartFilterType.dateRange,
+                    value: _EditorFilterType.dateRange,
                     child: Text('Date range'),
                   ),
                   DropdownMenuItem(
-                    value: SmartFilterType.tags,
+                    value: _EditorFilterType.tags,
                     child: Text('By tags'),
                   ),
                   DropdownMenuItem(
-                    value: SmartFilterType.completed,
+                    value: _EditorFilterType.completed,
                     child: Text('Completed'),
-                  ),
-                  DropdownMenuItem(
-                    value: SmartFilterType.all,
-                    child: Text('All incomplete'),
                   ),
                 ],
                 onChanged: (v) {
@@ -106,29 +123,7 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
               const SizedBox(height: 12),
 
               // Extra controls based on type
-              if (_filterType == SmartFilterType.upcoming) ...[
-                Row(
-                  children: [
-                    const Text('Days ahead: '),
-                    SizedBox(
-                      width: 60,
-                      child: TextField(
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                        ),
-                        controller: TextEditingController(text: '$_daysAhead'),
-                        onChanged: (v) {
-                          final parsed = int.tryParse(v);
-                          if (parsed != null && parsed > 0) _daysAhead = parsed;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-
-              if (_filterType == SmartFilterType.tags) ...[
+              if (_filterType == _EditorFilterType.tags) ...[
                 const SizedBox(height: 8),
                 const Text('Select tags:'),
                 const SizedBox(height: 4),
@@ -153,7 +148,7 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
                 ),
               ],
 
-              if (_filterType == SmartFilterType.dateRange) ...[
+              if (_filterType == _EditorFilterType.dateRange) ...[
                 const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -220,13 +215,14 @@ class _SmartListEditorDialogState extends State<SmartListEditorDialog> {
     if (name.isEmpty) return;
     final state = context.read<AppState>();
 
-    final filter = SmartFilter(
-      type: _filterType,
-      daysAhead: _daysAhead,
-      tagIds: _tagIds,
-      dateFrom: _dateFrom,
-      dateTo: _dateTo,
-    );
+    final SmartListFilter filter = switch (_filterType) {
+      _EditorFilterType.overdue => const OverdueFilter(),
+      _EditorFilterType.dateRange =>
+        DateRangeFilter(dateFrom: _dateFrom, dateTo: _dateTo),
+      _EditorFilterType.tags => TagsFilter(tagIds: _tagIds),
+      _EditorFilterType.completed => const CompletedFilter(),
+      _EditorFilterType.all => const AllTasksFilter(),
+    };
 
     if (_isEditing) {
       final sl = widget.smartList!;
