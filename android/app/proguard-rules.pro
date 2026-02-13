@@ -2,4 +2,3 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.embedding.** { *; }
 -dontwarn io.flutter.embedding.**
--keep class com.llfbandit.app_links.** { *; }
